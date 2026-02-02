@@ -1,1 +1,2 @@
-# nicop
+# nicoppwd
+ls -la
