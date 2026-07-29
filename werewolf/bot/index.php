@@ -1,5 +1,5 @@
 <?php
-// index.php - مرحله 4: دکمه‌های منو کامل
+// index.php - مرحله 5 و 6: فاز شب + پنل شب
 
 $token = '8520546535:AAGUOnE7GYqTKb3jvt49DO_RatT8bgcWSNA';
 $bot_username = 'Ni_cop_bot';
@@ -59,7 +59,11 @@ function createGame($group_id, $creator_id, $creator_name) {
             ['id' => $creator_id, 'name' => $creator_name, 'alive' => true, 'role' => null]
         ],
         'status' => 'waiting',
-        'created' => time()
+        'created' => time(),
+        'phase' => null,
+        'night_count' => 0,
+        'day_count' => 0,
+        'night_actions' => []
     ];
     saveGames($games);
     
@@ -125,14 +129,64 @@ function startGame($group_id, $user_id) {
     }
     
     $game['status'] = 'started';
+    $game['phase'] = 'night';
+    $game['night_count'] = 1;
+    $game['night_actions'] = [];
     $games[$game_code] = $game;
     saveGames($games);
     
     foreach ($game['players'] as $p) {
         sendPrivateMessage($p['id'], "🎭 <b>نقش شما: " . getRoleDisplayName($p['role']) . "</b>\n\n🌙 شب اول شروع شد...");
+        sendNightPanel($p, $game);
     }
     
+    sendMessage($group_id, "🌙 <b>شب " . $game['night_count'] . "!</b>\n\nهمه بخوابید...\n⏱ ۶۰ ثانیه تا صبح");
+    
     return ['success' => true, 'message' => "🎮 <b>بازی شروع شد!</b>\n\n👥 " . count($game['players']) . " نفر\n🌙 شب اول..."];
+}
+
+function sendNightPanel($player, $game) {
+    $role = $player['role'];
+    $nightRoles = ['werewolf', 'seer'];
+    
+    if (!in_array($role, $nightRoles)) {
+        sendPrivateMessage($player['id'], "🌙 <b>شب " . $game['night_count'] . "</b>\n\n💤 تو می‌تونی بخوابی...");
+        return;
+    }
+    
+    $targets = [];
+    $alivePlayers = array_filter($game['players'], function($p) use ($player) {
+        return ($p['alive'] ?? false) && $p['id'] != $player['id'];
+    });
+    
+    foreach ($alivePlayers as $p) {
+        if ($role == 'werewolf' && $p['role'] == 'werewolf') continue;
+        $targets[] = ['id' => $p['id'], 'name' => $p['name']];
+    }
+    
+    if (empty($targets)) {
+        sendPrivateMessage($player['id'], "🌙 <b>شب " . $game['night_count'] . "</b>\n\n⏳ هیچ هدف معتبری وجود ندارد!");
+        return;
+    }
+    
+    $msg = "🌙 <b>شب " . $game['night_count'] . "</b>\n\n";
+    $msg .= "🎭 نقش: " . getRoleDisplayName($role) . "\n\n";
+    $msg .= "👇 یک نفر رو انتخاب کن:";
+    
+    $keyboard = [];
+    $row = [];
+    foreach ($targets as $target) {
+        $row[] = ['text' => $target['name'], 'callback_data' => $role . '_' . $target['id']];
+        if (count($row) == 2) {
+            $keyboard[] = $row;
+            $row = [];
+        }
+    }
+    if (!empty($row)) {
+        $keyboard[] = $row;
+    }
+    
+    sendPrivateMessage($player['id'], $msg, ['inline_keyboard' => $keyboard]);
 }
 
 function getRoleDisplayName($role) {
@@ -162,10 +216,12 @@ function getRolesList() {
            "👮🏻‍♂️ کلانتر - اگر بمیرد، می‌تواند به یک نفر شلیک کند";
 }
 
-function sendPrivateMessage($user_id, $text) {
+function sendPrivateMessage($user_id, $text, $keyboard = null) {
     global $token;
     $url = "https://api.telegram.org/bot$token/sendMessage";
     $data = ['chat_id' => $user_id, 'text' => $text, 'parse_mode' => 'HTML'];
+    if ($keyboard) $data['reply_markup'] = json_encode($keyboard);
+    
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, $url);
     curl_setopt($ch, CURLOPT_POST, 1);
@@ -204,37 +260,58 @@ if (isset($update['callback_query'])) {
     $callback_id = $callback['id'];
     $chat_id = $callback['message']['chat']['id'];
     $data = $callback['data'];
+    $user_id = $callback['from']['id'];
     
+    // پردازش اکشن شب
+    $parts = explode('_', $data);
+    if (count($parts) == 2 && in_array($parts[0], ['werewolf', 'seer'])) {
+        $role = $parts[0];
+        $target_id = (int)$parts[1];
+        
+        $games = loadGames();
+        $game = null;
+        $game_code = null;
+        foreach ($games as $code => $g) {
+            foreach ($g['players'] as $p) {
+                if ($p['id'] == $user_id && in_array($g['status'], ['started']) && $g['phase'] == 'night') {
+                    $game = $g;
+                    $game_code = $code;
+                    break 2;
+                }
+            }
+        }
+        
+        if ($game) {
+            $game['night_actions'][] = ['player' => $user_id, 'role' => $role, 'target' => $target_id];
+            $games[$game_code] = $game;
+            saveGames($games);
+            answerCallbackQuery($callback_id, "✅ انتخاب شما ثبت شد!");
+            sendPrivateMessage($user_id, "✅ انتخاب شما برای شب " . $game['night_count'] . " ثبت شد.");
+        } else {
+            answerCallbackQuery($callback_id, "❌ خطا: بازی پیدا نشد!", true);
+        }
+        
+        http_response_code(200);
+        echo '{"ok":true}';
+        exit;
+    }
+    
+    // دکمه‌های منو
     $response = "";
     switch ($data) {
-        case 'create_game':
-            $response = "🎮 برای ساخت بازی، به یک گروه بروید و دستور /game را بزنید.";
-            break;
-        case 'join_menu':
-            $response = "🔗 کد بازی را وارد کنید:\nمثال: /join AB12CD";
-            break;
-        case 'rules':
-            $response = getRules();
-            break;
-        case 'roles':
-            $response = getRolesList();
-            break;
-        case 'help':
-            $response = "📚 راهنما:\n/start - منو\n/game - ساخت بازی\n/join [کد] - پیوستن\n/players - لیست بازیکنان\n/startgame - شروع بازی\n/ping - تست";
-            break;
+        case 'create_game': $response = "🎮 برای ساخت بازی، به یک گروه بروید و دستور /game را بزنید."; break;
+        case 'join_menu': $response = "🔗 کد بازی را وارد کنید:\nمثال: /join AB12CD"; break;
+        case 'rules': $response = getRules(); break;
+        case 'roles': $response = getRolesList(); break;
+        case 'help': $response = "📚 راهنما:\n/start - منو\n/game - ساخت بازی\n/join [کد] - پیوستن\n/players - لیست بازیکنان\n/startgame - شروع بازی\n/ping - تست"; break;
         case 'stats':
             $games = loadGames();
             $total = count($games);
             $waiting = count(array_filter($games, fn($g) => $g['status'] == 'waiting'));
             $started = count(array_filter($games, fn($g) => $g['status'] == 'started'));
-            $response = "📊 <b>آمار ربات</b>\n\n" .
-                       "🎮 کل بازی‌ها: $total\n" .
-                       "⏳ در انتظار: $waiting\n" .
-                       "▶️ در حال اجرا: $started";
+            $response = "📊 <b>آمار ربات</b>\n\n" . "🎮 کل بازی‌ها: $total\n" . "⏳ در انتظار: $waiting\n" . "▶️ در حال اجرا: $started";
             break;
-        default:
-            $response = "✅ دکمه $data فشار داده شد!";
-            break;
+        default: $response = "✅ دکمه $data فشار داده شد!"; break;
     }
     
     answerCallbackQuery($callback_id, $response);
@@ -358,10 +435,10 @@ function sendMessage($chat_id, $text, $keyboard = null) {
     return json_decode($result, true);
 }
 
-function answerCallbackQuery($callback_id, $text) {
+function answerCallbackQuery($callback_id, $text, $show_alert = false) {
     global $token;
     $url = "https://api.telegram.org/bot$token/answerCallbackQuery";
-    $data = ['callback_query_id' => $callback_id, 'text' => $text];
+    $data = ['callback_query_id' => $callback_id, 'text' => $text, 'show_alert' => $show_alert];
     
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, $url);
