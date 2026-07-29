@@ -1,5 +1,5 @@
 <?php
-// game.php - نسخه ساده و تست شده
+// game.php - نسخه فوق‌العاده ساده
 
 function generateGameCode() {
     $chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -14,62 +14,41 @@ function createGame($group_id, $creator_id, $creator_name) {
     $code = generateGameCode();
     return [
         'success' => true,
-        'message' => "🐺 بازی ساخته شد!\n🎲 کد: <code>$code</code>\n👤 سازنده: $creator_name",
+        'message' => "🐺 بازی ساخته شد!\n🎲 کد: <code>$code</code>",
         'code' => $code
     ];
 }
 
 function joinGame($code, $user_id, $user_name) {
-    return [
-        'success' => true,
-        'message' => "✅ $user_name به بازی پیوست!"
-    ];
+    return ['success' => true, 'message' => "✅ $user_name به بازی پیوست!"];
 }
 
 function leaveGame($user_id, $chat_id) {
-    return [
-        'success' => true,
-        'message' => "✅ از بازی خارج شدید!"
-    ];
+    return ['success' => true, 'message' => "✅ خارج شدید!"];
 }
 
 function startGame($group_id, $user_id = null) {
-    return [
-        'success' => true,
-        'message' => "▶️ بازی شروع شد!"
-    ];
+    return ['success' => true, 'message' => "▶️ بازی شروع شد!"];
 }
 
 function cancelGame($group_id, $user_id) {
-    return [
-        'success' => true,
-        'message' => "❌ بازی لغو شد!"
-    ];
+    return ['success' => true, 'message' => "❌ لغو شد!"];
 }
 
 function extendWaitingTime($group_id, $user_id) {
-    return [
-        'success' => true,
-        'message' => "⏱ زمان تمدید شد!"
-    ];
+    return ['success' => true, 'message' => "⏱ تمدید شد!"];
 }
 
 function setGameTiming($group_id, $user_id, $timing) {
-    return [
-        'success' => true,
-        'message' => "⚙️ تایم تنظیم شد!"
-    ];
+    return ['success' => true, 'message' => "⚙️ تنظیم شد!"];
 }
 
 function getGameInfo($group_id) {
-    return [
-        'success' => true,
-        'message' => "ℹ️ اطلاعات بازی"
-    ];
+    return ['success' => true, 'message' => "ℹ️ اطلاعات بازی"];
 }
 
 function getGameStats() {
-    return ['total' => 0, 'waiting' => 0, 'started' => 0, 'ended' => 0, 'today' => 0];
+    return ['total' => 0, 'waiting' => 0, 'started' => 0, 'ended' => 0];
 }
 
 function getDatabaseSize() {
@@ -77,7 +56,7 @@ function getDatabaseSize() {
 }
 
 function handleTeamChat($user_id, $message, $gameCode) {
-    return ['success' => true, 'message' => "✅ پیام ارسال شد!"];
+    return ['success' => true, 'message' => "✅ ارسال شد!"];
 }
 
 function killPlayer($game, $playerId, $cause) {
