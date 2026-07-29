@@ -1,5 +1,5 @@
 <?php
-// index.php - مرحله 2: دیتابیس ساده
+// index.php - مرحله 3: شروع بازی و نقش‌ها
 
 $token = '8520546535:AAGUOnE7GYqTKb3jvt49DO_RatT8bgcWSNA';
 $bot_username = 'Ni_cop_bot';
@@ -44,7 +44,6 @@ function generateGameCode() {
 function createGame($group_id, $creator_id, $creator_name) {
     $games = loadGames();
     
-    // بررسی بازی فعال در گروه
     foreach ($games as $game) {
         if ($game['group_id'] == $group_id && in_array($game['status'], ['waiting', 'started'])) {
             return ['success' => false, 'message' => '⏳ یک بازی فعال در این گروه وجود دارد!'];
@@ -59,7 +58,7 @@ function createGame($group_id, $creator_id, $creator_name) {
         'creator_id' => $creator_id,
         'creator_name' => $creator_name,
         'players' => [
-            ['id' => $creator_id, 'name' => $creator_name, 'alive' => true]
+            ['id' => $creator_id, 'name' => $creator_name, 'alive' => true, 'role' => null]
         ],
         'status' => 'waiting',
         'created' => time()
@@ -92,7 +91,7 @@ function joinGame($code, $user_id, $user_name) {
         }
     }
     
-    $game['players'][] = ['id' => $user_id, 'name' => $user_name, 'alive' => true];
+    $game['players'][] = ['id' => $user_id, 'name' => $user_name, 'alive' => true, 'role' => null];
     $games[$code] = $game;
     saveGames($games);
     
@@ -110,6 +109,81 @@ function getGameInfo($group_id) {
         }
     }
     return null;
+}
+
+function startGame($group_id, $user_id) {
+    $games = loadGames();
+    $game = null;
+    $game_code = null;
+    
+    foreach ($games as $code => $g) {
+        if ($g['group_id'] == $group_id && $g['status'] == 'waiting') {
+            $game = $g;
+            $game_code = $code;
+            break;
+        }
+    }
+    
+    if (!$game) {
+        return ['success' => false, 'message' => '❌ بازی فعالی برای شروع وجود ندارد!'];
+    }
+    
+    if (count($game['players']) < 4) {
+        return ['success' => false, 'message' => '❌ حداقل ۴ نفر نیاز است! (' . count($game['players']) . '/4)'];
+    }
+    
+    // تخصیص نقش‌ها
+    $roles = ['villager', 'villager', 'werewolf', 'seer'];
+    while (count($roles) < count($game['players'])) {
+        $roles[] = 'villager';
+    }
+    shuffle($roles);
+    
+    foreach ($game['players'] as $i => &$p) {
+        $p['role'] = $roles[$i];
+    }
+    
+    $game['status'] = 'started';
+    $games[$game_code] = $game;
+    saveGames($games);
+    
+    // ارسال نقش به هر بازیکن
+    foreach ($game['players'] as $p) {
+        sendPrivateMessage($p['id'], "🎭 <b>نقش شما: " . getRoleDisplayName($p['role']) . "</b>\n\n🌙 شب اول شروع شد...");
+    }
+    
+    return [
+        'success' => true,
+        'message' => "🎮 <b>بازی شروع شد!</b>\n\n👥 " . count($game['players']) . " نفر\n🌙 شب اول..."
+    ];
+}
+
+function getRoleDisplayName($role) {
+    $names = [
+        'villager' => '👨‍🌾 روستایی ساده',
+        'seer' => '👳🏻‍♂️ پیشگو',
+        'werewolf' => '🐺 گرگینه',
+        'guardian_angel' => '👼🏻 فرشته نگهبان',
+        'hunter' => '👮🏻‍♂️ کلانتر'
+    ];
+    return $names[$role] ?? '❓ ' . $role;
+}
+
+function sendPrivateMessage($user_id, $text) {
+    global $token;
+    $url = "https://api.telegram.org/bot$token/sendMessage";
+    $data = ['chat_id' => $user_id, 'text' => $text, 'parse_mode' => 'HTML'];
+    
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_POST, 1);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($data));
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+    $result = curl_exec($ch);
+    curl_close($ch);
+    return json_decode($result, true);
 }
 
 // ============================================================
@@ -222,12 +296,17 @@ switch ($command) {
         }
         break;
         
+    case '/startgame':
+        $result = startGame($chat_id, $user_id);
+        sendMessage($chat_id, $result['message']);
+        break;
+        
     case '/ping':
         sendMessage($chat_id, "🏓 Pong! زمان: " . date('H:i:s'));
         break;
         
     case '/help':
-        sendMessage($chat_id, "📚 راهنما:\n/start - منو\n/game - ساخت بازی\n/join [کد] - پیوستن\n/players - لیست بازیکنان\n/ping - تست");
+        sendMessage($chat_id, "📚 راهنما:\n/start - منو\n/game - ساخت بازی\n/join [کد] - پیوستن\n/players - لیست بازیکنان\n/startgame - شروع بازی\n/ping - تست");
         break;
         
     default:
