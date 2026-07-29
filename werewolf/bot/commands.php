@@ -1,5 +1,5 @@
 <?php
-// commands.php - ساده‌ترین نسخه
+// commands.php - ساده برای تست
 
 function processUpdate($update) {
     if (!isset($update['message'])) {
@@ -11,7 +11,7 @@ function processUpdate($update) {
     $text = $message['text'] ?? '';
     $first_name = $message['from']['first_name'] ?? 'کاربر';
     
-    file_put_contents('debug.log', date('Y-m-d H:i:s') . " - Command: $text\n", FILE_APPEND);
+    file_put_contents(__DIR__ . '/debug.log', date('Y-m-d H:i:s') . " - Command: $text\n", FILE_APPEND);
     
     switch ($text) {
         case '/start':
@@ -41,6 +41,6 @@ function sendMessage($chat_id, $text) {
     $result = curl_exec($ch);
     curl_close($ch);
     
-    file_put_contents('debug.log', date('Y-m-d H:i:s') . " - sendMessage result: " . substr($result, 0, 100) . "\n", FILE_APPEND);
+    file_put_contents(__DIR__ . '/debug.log', date('Y-m-d H:i:s') . " - sendMessage: " . substr($result, 0, 100) . "\n", FILE_APPEND);
     return json_decode($result, true);
 }
