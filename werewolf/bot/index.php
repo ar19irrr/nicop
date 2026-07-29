@@ -479,14 +479,10 @@ function createGame($group_id, $creator_id, $creator_name) {
     $minutes = floor($remaining / 60);
     $seconds = $remaining % 60;
     
-    $msg = "🐺 <b>بازی جدید ساخته شد!</b>\n\n";
-    $msg .= "🎲 <b>کد بازی:</b> <code>$code</code>\n";
+    $msg = "✅ بازی با کد <code>$code</code> ساخته شد!\n\n";
     $msg .= "👤 سازنده: $creator_name\n";
-    $msg .= "👥 بازیکنان فعلی: ۱ نفر\n\n";
-    $msg .= "⏱ <b>زمان باقیمانده جوین:</b> $minutes:" . sprintf("%02d", $seconds) . "\n\n";
-    $msg .= "📌 <b>دوستانت رو دعوت کن:</b>\n";
-    $msg .= "🔗 لینک دعوت: https://t.me/" . BOT_USERNAME . "?start=join_$code\n\n";
-    $msg .= "👇 برای شروع بازی حداقل ۴ نفر نیازه!";
+    $msg .= "👥 تعداد: ۱ نفر\n\n";
+    $msg .= "📌 برای پیوستن: /join $code";
     
     // ارسال پیام با روش جایگزین
     $result = sendMessage($group_id, $msg);
