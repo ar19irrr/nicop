@@ -10,6 +10,9 @@ function processUpdate($update) {
     $text = $message['text'] ?? '';
     $first_name = $message['from']['first_name'] ?? 'کاربر';
     
+    // لاگ برای دیباگ
+    file_put_contents(__DIR__ . '/debug.log', date('Y-m-d H:i:s') . " - Command: $text\n", FILE_APPEND);
+    
     if ($text === '/start') {
         sendMessage($chat_id, "👋 سلام <b>$first_name</b>!\n🐺 ربات گرگینه روی Render فعاله!");
     } elseif ($text === '/ping') {
