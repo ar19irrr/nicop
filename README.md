@@ -1,2 +1,0 @@
-# nicoppwd
-ls -la
