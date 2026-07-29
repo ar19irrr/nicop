@@ -1,5 +1,5 @@
 <?php
-// index.php - نسخه کامل با همه قابلیت‌ها (یک فایل)
+// index.php - نسخه نهایی با رفع باگ‌ها
 
 // ============================================================
 // 1. تنظیمات اولیه
@@ -438,8 +438,12 @@ function generateGameCode() {
 
 function createGame($group_id, $creator_id, $creator_name) {
     $games = loadGames();
+    
+    // برای دیباگ: لاگ کردن group_id
+    file_put_contents(__DIR__ . '/bot.log', date('Y-m-d H:i:s') . " - createGame for group: " . $group_id . "\n", FILE_APPEND);
+    
     foreach ($games as $game) {
-        if ($game['group_id'] == $group_id && in_array($game['status'], ['waiting', 'started'])) {
+        if (isset($game['group_id']) && $game['group_id'] == $group_id && in_array($game['status'], ['waiting', 'started'])) {
             return ['success' => false, 'message' => '⏳ یک بازی فعال در این گروه وجود دارد!'];
         }
     }
@@ -514,7 +518,7 @@ function joinGame($code, $user_id, $user_name) {
 function getGameInfo($group_id) {
     $games = loadGames();
     foreach ($games as $game) {
-        if ($game['group_id'] == $group_id && in_array($game['status'], ['waiting', 'started'])) {
+        if (isset($game['group_id']) && $game['group_id'] == $group_id && in_array($game['status'], ['waiting', 'started'])) {
             return $game;
         }
     }
@@ -523,8 +527,12 @@ function getGameInfo($group_id) {
 
 function getGroupActiveGame($group_id) {
     $games = loadGames();
+    
+    // برای دیباگ: لاگ کردن
+    file_put_contents(__DIR__ . '/bot.log', date('Y-m-d H:i:s') . " - getGroupActiveGame for group: " . $group_id . "\n", FILE_APPEND);
+    
     foreach ($games as $game) {
-        if ($game['group_id'] == $group_id && in_array($game['status'], ['waiting', 'started'])) {
+        if (isset($game['group_id']) && $game['group_id'] == $group_id && in_array($game['status'], ['waiting', 'started'])) {
             return $game;
         }
     }
@@ -561,7 +569,7 @@ function cancelGame($chat_id, $user_id) {
     $games = loadGames();
     $found = false;
     foreach ($games as $code => $game) {
-        if ($game['group_id'] == $chat_id && $game['status'] == 'waiting') {
+        if (isset($game['group_id']) && $game['group_id'] == $chat_id && $game['status'] == 'waiting') {
             unset($games[$code]);
             saveGames($games);
             $found = true;
@@ -578,7 +586,7 @@ function leaveGame($chat_id, $user_id) {
     $games = loadGames();
     $found = false;
     foreach ($games as $code => $game) {
-        if ($game['group_id'] == $chat_id && $game['status'] == 'waiting') {
+        if (isset($game['group_id']) && $game['group_id'] == $chat_id && $game['status'] == 'waiting') {
             foreach ($game['players'] as $key => $p) {
                 if ($p['id'] == $user_id) {
                     unset($game['players'][$key]);
@@ -604,7 +612,7 @@ function leaveGame($chat_id, $user_id) {
 function extendWaitingTime($chat_id, $user_id) {
     $games = loadGames();
     foreach ($games as $code => $game) {
-        if ($game['group_id'] == $chat_id && $game['status'] == 'waiting') {
+        if (isset($game['group_id']) && $game['group_id'] == $chat_id && $game['status'] == 'waiting') {
             if ($game['extend_count'] >= 3) {
                 return ['success' => false, 'message' => '❌ حداکثر ۳ بار تمدید!'];
             }
@@ -624,7 +632,7 @@ function extendWaitingTime($chat_id, $user_id) {
 function setGameTiming($chat_id, $user_id, $timing) {
     $games = loadGames();
     foreach ($games as $code => $game) {
-        if ($game['group_id'] == $chat_id && $game['status'] == 'waiting') {
+        if (isset($game['group_id']) && $game['group_id'] == $chat_id && $game['status'] == 'waiting') {
             $times = ['fast' => 60, 'normal' => 90, 'slow' => 120];
             if (!isset($times[$timing])) {
                 return ['success' => false, 'message' => '❌ گزینه نامعتبر!'];
@@ -645,7 +653,7 @@ function startGame($group_id, $user_id) {
     $game = null;
     $game_code = null;
     foreach ($games as $code => $g) {
-        if ($g['group_id'] == $group_id && $g['status'] == 'waiting') {
+        if (isset($g['group_id']) && $g['group_id'] == $group_id && $g['status'] == 'waiting') {
             $game = $g;
             $game_code = $code;
             break;
@@ -693,7 +701,7 @@ function endGame($game) {
     $game['status'] = 'ended';
     $games = loadGames();
     foreach ($games as $code => $g) {
-        if ($g['group_id'] == $game['group_id']) {
+        if (isset($g['group_id']) && $g['group_id'] == $game['group_id']) {
             $games[$code] = $game;
             break;
         }
@@ -826,7 +834,7 @@ function startVoting($game) {
     
     $games = loadGames();
     foreach ($games as $code => $g) {
-        if ($g['group_id'] == $game['group_id']) {
+        if (isset($g['group_id']) && $g['group_id'] == $game['group_id']) {
             $games[$code] = $game;
             break;
         }
@@ -1382,6 +1390,24 @@ $text = $message['text'] ?? '';
 $first_name = $message['from']['first_name'] ?? 'کاربر';
 $chat_type = $message['chat']['type'] ?? 'private';
 
+// ====== رفع باگ: پیام‌های معمولی رو نادیده بگیر ======
+// اگه پیام با / شروع نشه، نادیده بگیر (فقط چت تیمی توی شب)
+if (substr($text, 0, 1) !== '/') {
+    // چک کن آیا کاربر توی بازی هست و شب هست؟
+    $game = getPlayerActiveGame($user_id);
+    if ($game && $game['phase'] == 'night') {
+        // چت تیمی
+        $result = handleTeamChatMessage($user_id, $text, $game['code']);
+        if ($result['success']) {
+            sendMessage($chat_id, $result['message']);
+        }
+    }
+    // همیشه پاسخ ۲۰۰ برگردون
+    http_response_code(200);
+    echo '{"ok":true}';
+    exit;
+}
+
 $parts = explode(' ', $text);
 $command = strtolower($parts[0]);
 $param = $parts[1] ?? '';
@@ -1389,7 +1415,7 @@ $param = $parts[1] ?? '';
 // ===== چک کردن تایمرها =====
 $games = loadGames();
 foreach ($games as $code => $game) {
-    if ($game['group_id'] == $chat_id && $game['status'] == 'started') {
+    if (isset($game['group_id']) && $game['group_id'] == $chat_id && $game['status'] == 'started') {
         if ($game['phase'] == 'night' && $game['night_end_time'] > 0 && time() >= $game['night_end_time']) {
             processNight($code, $game);
             sendMessage($chat_id, "⏰ شب به پایان رسید! صبح شد...");
