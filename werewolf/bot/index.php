@@ -1,5 +1,5 @@
 <?php
-// index.php - مرحله 5 و 6: فاز شب + پنل شب
+// index.php - با تایمر ۶۰ ثانیه برای شب
 
 $token = '8520546535:AAGUOnE7GYqTKb3jvt49DO_RatT8bgcWSNA';
 $bot_username = 'Ni_cop_bot';
@@ -63,7 +63,9 @@ function createGame($group_id, $creator_id, $creator_name) {
         'phase' => null,
         'night_count' => 0,
         'day_count' => 0,
-        'night_actions' => []
+        'night_actions' => [],
+        'votes' => [],
+        'night_end_time' => 0
     ];
     saveGames($games);
     
@@ -132,6 +134,8 @@ function startGame($group_id, $user_id) {
     $game['phase'] = 'night';
     $game['night_count'] = 1;
     $game['night_actions'] = [];
+    $game['votes'] = [];
+    $game['night_end_time'] = time() + 60; // 60 ثانیه
     $games[$game_code] = $game;
     saveGames($games);
     
@@ -187,6 +191,175 @@ function sendNightPanel($player, $game) {
     }
     
     sendPrivateMessage($player['id'], $msg, ['inline_keyboard' => $keyboard]);
+}
+
+function processNight($game_code, $game) {
+    $deaths = [];
+    foreach ($game['night_actions'] as $action) {
+        if ($action['role'] == 'werewolf') {
+            $target = $action['target'];
+            foreach ($game['players'] as &$p) {
+                if ($p['id'] == $target) {
+                    $p['alive'] = false;
+                    $deaths[] = $p['name'];
+                    break;
+                }
+            }
+        }
+    }
+    
+    $game['phase'] = 'day';
+    $game['day_count'] = ($game['day_count'] ?? 0) + 1;
+    $game['votes'] = [];
+    $game['night_actions'] = [];
+    $game['night_end_time'] = 0;
+    
+    $games = loadGames();
+    $games[$game_code] = $game;
+    saveGames($games);
+    
+    $msg = "☀️ <b>صبح روز " . $game['day_count'] . " شد!</b>\n\n";
+    if (!empty($deaths)) {
+        $msg .= "💀 <b>کشته شدگان:</b>\n" . implode("\n", array_map(fn($name) => "• $name", $deaths)) . "\n\n";
+    } else {
+        $msg .= "✨ <b>امشب کسی نمرد!</b>\n\n";
+    }
+    
+    $msg .= "🗳️ <b>زمان رأی‌گیری!</b>\nبه صورت خصوصی به ربات پیام دهید.";
+    sendMessage($game['group_id'], $msg);
+    
+    startVoting($game);
+}
+
+function startVoting($game) {
+    $alivePlayers = array_filter($game['players'], fn($p) => $p['alive'] ?? false);
+    if (count($alivePlayers) < 2) {
+        endGame($game);
+        return;
+    }
+    
+    foreach ($alivePlayers as $p) {
+        sendVotePanel($p, $game);
+    }
+}
+
+function sendVotePanel($player, $game) {
+    $alivePlayers = array_filter($game['players'], function($p) use ($player) {
+        return ($p['alive'] ?? false) && $p['id'] != $player['id'];
+    });
+    
+    if (empty($alivePlayers)) {
+        sendPrivateMessage($player['id'], "❌ هیچ بازیکن زنده دیگری برای رأی دادن وجود ندارد!");
+        return;
+    }
+    
+    $msg = "🗳️ <b>رأی‌گیری روز " . $game['day_count'] . "</b>\n\n";
+    $msg .= "👇 یک نفر رو برای اعدام انتخاب کن:";
+    
+    $keyboard = [];
+    $row = [];
+    foreach ($alivePlayers as $p) {
+        $row[] = ['text' => $p['name'], 'callback_data' => 'vote_' . $p['id']];
+        if (count($row) == 2) {
+            $keyboard[] = $row;
+            $row = [];
+        }
+    }
+    if (!empty($row)) {
+        $keyboard[] = $row;
+    }
+    $keyboard[] = [['text' => '⚪ رأی سفید', 'callback_data' => 'vote_skip']];
+    
+    sendPrivateMessage($player['id'], $msg, ['inline_keyboard' => $keyboard]);
+}
+
+function processVotes($game_code, $game) {
+    $votes = $game['votes'] ?? [];
+    $counts = [];
+    
+    foreach ($votes as $voter_id => $target_id) {
+        if ($target_id == 'skip') continue;
+        $counts[$target_id] = ($counts[$target_id] ?? 0) + 1;
+    }
+    
+    arsort($counts);
+    $max = reset($counts) ?? 0;
+    $targets = array_keys($counts, $max);
+    
+    if ($max > 0 && count($targets) == 1) {
+        $target_id = $targets[0];
+        foreach ($game['players'] as &$p) {
+            if ($p['id'] == $target_id) {
+                $p['alive'] = false;
+                sendMessage($game['group_id'], "💀 <b>" . $p['name'] . "</b> اعدام شد!\n🎭 نقش: " . getRoleDisplayName($p['role']));
+                break;
+            }
+        }
+    } else {
+        sendMessage($game['group_id'], "⚖️ <b>رأی‌ها مساوی شد! کسی اعدام نشد.</b>");
+    }
+    
+    $game['votes'] = [];
+    $games = loadGames();
+    $games[$game_code] = $game;
+    saveGames($games);
+    
+    checkWinCondition($game_code);
+}
+
+function checkWinCondition($game_code) {
+    $games = loadGames();
+    $game = $games[$game_code] ?? null;
+    if (!$game) return;
+    
+    $alive = array_filter($game['players'], fn($p) => $p['alive'] ?? false);
+    $wolves = array_filter($alive, fn($p) => $p['role'] == 'werewolf');
+    $villagers = array_filter($alive, fn($p) => $p['role'] != 'werewolf');
+    
+    if (count($wolves) == 0) {
+        sendMessage($game['group_id'], "🎉 <b>روستایی‌ها برنده شدند!</b>");
+        $game['status'] = 'ended';
+        $games[$game_code] = $game;
+        saveGames($games);
+        return;
+    }
+    
+    if (count($wolves) >= count($villagers)) {
+        sendMessage($game['group_id'], "🎉 <b>گرگ‌ها برنده شدند!</b>");
+        $game['status'] = 'ended';
+        $games[$game_code] = $game;
+        saveGames($games);
+        return;
+    }
+    
+    // شب بعد
+    $game['phase'] = 'night';
+    $game['night_count'] = ($game['night_count'] ?? 0) + 1;
+    $game['night_actions'] = [];
+    $game['night_end_time'] = time() + 60;
+    $games[$game_code] = $game;
+    saveGames($games);
+    
+    sendMessage($game['group_id'], "🌙 <b>شب " . $game['night_count'] . "!</b>\n\nهمه بخوابید...\n⏱ ۶۰ ثانیه تا صبح");
+    
+    foreach ($game['players'] as $p) {
+        if ($p['alive'] ?? false) {
+            sendNightPanel($p, $game);
+        }
+    }
+}
+
+function endGame($game) {
+    $game['status'] = 'ended';
+    $games = loadGames();
+    foreach ($games as $code => $g) {
+        if ($g['group_id'] == $game['group_id']) {
+            $games[$code] = $game;
+            break;
+        }
+    }
+    saveGames($games);
+    sendMessage($game['group_id'], "🏁 <b>بازی تمام شد!</b>");
 }
 
 function getRoleDisplayName($role) {
@@ -296,6 +469,43 @@ if (isset($update['callback_query'])) {
         exit;
     }
     
+    // پردازش رأی
+    $parts = explode('_', $data);
+    if (count($parts) == 2 && $parts[0] == 'vote') {
+        $target_id = $parts[1] == 'skip' ? 'skip' : (int)$parts[1];
+        
+        $games = loadGames();
+        $game = null;
+        $game_code = null;
+        foreach ($games as $code => $g) {
+            foreach ($g['players'] as $p) {
+                if ($p['id'] == $user_id && in_array($g['status'], ['started']) && $g['phase'] == 'day') {
+                    $game = $g;
+                    $game_code = $code;
+                    break 2;
+                }
+            }
+        }
+        
+        if ($game) {
+            $game['votes'][$user_id] = $target_id;
+            $games[$game_code] = $game;
+            saveGames($games);
+            answerCallbackQuery($callback_id, "✅ رأی شما ثبت شد!");
+            
+            $alive = array_filter($game['players'], fn($p) => $p['alive'] ?? false);
+            if (count($game['votes']) >= count($alive)) {
+                processVotes($game_code, $game);
+            }
+        } else {
+            answerCallbackQuery($callback_id, "❌ خطا: بازی پیدا نشد!", true);
+        }
+        
+        http_response_code(200);
+        echo '{"ok":true}';
+        exit;
+    }
+    
     // دکمه‌های منو
     $response = "";
     switch ($data) {
@@ -338,6 +548,18 @@ $chat_type = $message['chat']['type'] ?? 'private';
 $parts = explode(' ', $text);
 $command = strtolower($parts[0]);
 $param = $parts[1] ?? '';
+
+// ===== چک کردن تایمر شب =====
+$games = loadGames();
+foreach ($games as $code => $game) {
+    if ($game['group_id'] == $chat_id && $game['status'] == 'started' && $game['phase'] == 'night') {
+        if ($game['night_end_time'] > 0 && time() >= $game['night_end_time']) {
+            processNight($code, $game);
+            sendMessage($chat_id, "⏰ شب به پایان رسید! صبح شد...");
+        }
+        break;
+    }
+}
 
 switch ($command) {
     case '/start':
