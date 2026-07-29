@@ -1,15 +1,27 @@
 <?php
+// index.php - نسخه نهایی با پشتیبانی از lang.php
+
 // ============================================================
-// تنظیمات اصلی
+// 1. تنظیمات اولیه
 // ============================================================
 
 $token = '8520546535:AAGUOnE7GYqTKb3jvt49DO_RatT8bgcWSNA';
 $bot_username = 'Ni_cop_bot';
 $data_path = __DIR__ . '/data/';
-$admin_id = 1095925103; // آیدی ادمین اصلی
 
 // ============================================================
-// دیتابیس‌ها
+// 2. لود کردن فایل‌ها
+// ============================================================
+
+require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/functions.php';
+require_once __DIR__ . '/database.php';
+require_once __DIR__ . '/game.php';
+require_once __DIR__ . '/commands.php';
+require_once __DIR__ . '/lang.php';  // ← فایل زبان اضافه شد
+
+// ============================================================
+// 3. دیتابیس‌ها
 // ============================================================
 
 function loadGames() {
@@ -105,7 +117,6 @@ function savePurchasedItems($items) {
 
 function loadLinks() {
     global $data_path;
-    if (!is_dir($data_path)) mkdir($data_path, 0777, true);
     $file = $data_path . 'group_links.json';
     if (!file_exists($file)) {
         file_put_contents($file, '{}');
@@ -141,7 +152,7 @@ function saveScores($scores) {
 }
 
 // ============================================================
-// سیستم سکه
+// 4. سیستم سکه
 // ============================================================
 
 function getCoin($user_id) {
@@ -209,29 +220,7 @@ function buyItem($user_id, $item_id) {
 }
 
 // ============================================================
-// سیستم امتیاز
-// ============================================================
-
-function getScore($user_id) {
-    $scores = loadScores();
-    return $scores[$user_id] ?? 0;
-}
-
-function addScore($user_id, $amount) {
-    $scores = loadScores();
-    $scores[$user_id] = ($scores[$user_id] ?? 0) + $amount;
-    saveScores($scores);
-    return $scores[$user_id];
-}
-
-function getTopScores($limit = 10) {
-    $scores = loadScores();
-    arsort($scores);
-    return array_slice($scores, 0, $limit, true);
-}
-
-// ============================================================
-// سیستم گزارش
+// 5. سیستم گزارش
 // ============================================================
 
 function addReport($reporter_id, $reported_id, $reason, $game_code = null) {
@@ -267,7 +256,7 @@ function resolveReport($report_id, $action) {
 }
 
 // ============================================================
-// سیستم تنظیمات گروه
+// 6. سیستم تنظیمات گروه
 // ============================================================
 
 function getGroupSetting($group_id, $key, $default = null) {
@@ -306,7 +295,7 @@ function getGroupSettingsMenu($group_id) {
 }
 
 // ============================================================
-// سیستم حالت‌های بازی
+// 7. سیستم حالت‌های بازی
 // ============================================================
 
 function getGameModes() {
@@ -338,7 +327,6 @@ function startGameWithMode($group_id, $user_id, $mode) {
     $result = createGame($group_id, $user_id, 'کاربر');
     if (!$result['success']) return $result;
     
-    // تنظیم حالت بازی
     $games = loadGames();
     $code = $result['code'];
     $games[$code]['game_mode'] = $mode;
@@ -348,7 +336,7 @@ function startGameWithMode($group_id, $user_id, $mode) {
 }
 
 // ============================================================
-// توابع اصلی بازی
+// 8. توابع اصلی بازی
 // ============================================================
 
 function generateGameCode() {
@@ -635,7 +623,7 @@ function getDatabaseSize() {
 }
 
 // ============================================================
-// سیستم نقش‌ها (ساده شده)
+// 9. سیستم نقش‌ها (ساده شده)
 // ============================================================
 
 function getRoleDisplayName($role) {
@@ -744,12 +732,7 @@ function getRolesList() {
            "👼🏻 فرشته نگهبان - هر شب از یک نفر محافظت می‌کند\n" .
            "👮🏻‍♂️ کلانتر - اگر بمیرد، می‌تواند به یک نفر شلیک کند\n" .
            "🕵🏻‍♂️ کاراگاه - هر شب یک نفر را تحقیق می‌کند\n" .
-           "🗡 شوالیه - هر شب از یک نفر محافظت می‌کند\n" .
-           "🔪 قاتل زنجیره‌ای - هر شب یک نفر را می‌کشد\n" .
-           "🧛🏻‍♂️ ومپایر - هر شب به یک نفر حمله می‌کند\n" .
-           "👤 فرقه‌گرا - هر شب یک نفر را به فرقه دعوت می‌کند\n" .
-           "🤡 جوکر - کتیبه‌ها را جمع می‌کند\n" .
-           "👺 منافق - باید اعدام شود تا برنده شود";
+           "🗡 شوالیه - هر شب از یک نفر محافظت می‌کند";
 }
 
 function getRoleActionDescription($role) {
@@ -765,7 +748,7 @@ function getRoleActionDescription($role) {
 }
 
 // ============================================================
-// فازهای بازی (ساده شده)
+// 10. فازهای بازی (ساده شده)
 // ============================================================
 
 function sendNightPanel($player, $game) {
@@ -977,7 +960,7 @@ function checkWinCondition($game_code) {
     $villagers = array_filter($alive, fn($p) => $p['role'] != 'werewolf');
     
     if (count($wolves) == 0) {
-        sendMessage($game['group_id'], "🎉 <b>روستایی‌ها برنده شدند!</b>");
+        sendMessage($game['group_id'], getLang('winner_villager'));
         $game['status'] = 'ended';
         $games[$game_code] = $game;
         saveGames($games);
@@ -985,7 +968,7 @@ function checkWinCondition($game_code) {
     }
     
     if (count($wolves) >= count($villagers)) {
-        sendMessage($game['group_id'], "🎉 <b>گرگ‌ها برنده شدند!</b>");
+        sendMessage($game['group_id'], getLang('winner_werewolf'));
         $game['status'] = 'ended';
         $games[$game_code] = $game;
         saveGames($games);
@@ -1018,7 +1001,7 @@ function endGame($game) {
         }
     }
     saveGames($games);
-    sendMessage($game['group_id'], "🏁 <b>بازی تمام شد!</b>");
+    sendMessage($game['group_id'], getLang('game_ended'));
 }
 
 function startGame($group_id, $user_id) {
@@ -1070,7 +1053,7 @@ function startGame($group_id, $user_id) {
 }
 
 // ============================================================
-// سیستم چت تیمی و مدیریت پیام‌ها
+// 11. سیستم چت تیمی و مدیریت پیام‌ها
 // ============================================================
 
 function handleTeamChatMessage($user_id, $message, $game_code) {
@@ -1145,7 +1128,7 @@ function handleEmojiMessage($user_id, $message) {
 }
 
 // ============================================================
-// توابع ارسال پیام
+// 12. توابع ارسال پیام
 // ============================================================
 
 function sendMessage($chat_id, $text, $keyboard = null) {
@@ -1202,7 +1185,7 @@ function answerCallbackQuery($callback_id, $text, $show_alert = false) {
 }
 
 // ============================================================
-// پردازش اصلی
+// 13. پردازش اصلی
 // ============================================================
 
 file_put_contents(__DIR__ . '/bot.log', date('Y-m-d H:i:s') . " - START\n", FILE_APPEND);
@@ -1312,11 +1295,11 @@ if (isset($update['callback_query'])) {
     // دکمه‌های منو
     $response = "";
     switch ($data) {
-        case 'create_game': $response = "🎮 برای ساخت بازی، به یک گروه بروید و دستور /game را بزنید."; break;
+        case 'create_game': $response = getLang('game_not_create'); break;
         case 'join_menu': $response = "🔗 کد بازی را وارد کنید:\nمثال: /join AB12CD"; break;
         case 'rules': $response = getRules(); break;
         case 'roles': $response = getRolesList(); break;
-        case 'help': $response = "📚 راهنما:\n/start - منو\n/game - ساخت بازی\n/join [کد] - پیوستن\n/players - لیست بازیکنان\n/startgame - شروع بازی\n/stop - لغو بازی\n/leave - خروج\n/extend - تمدید زمان\n/timing - تنظیم تایم\n/setlink - تنظیم لینک\n/removelink - حذف لینک\n/coin - سکه\n/shop - فروشگاه\n/report - گزارش\n/score - امتیاز\n/stats - آمار\n/ping - تست"; break;
+        case 'help': $response = getLang('help'); break;
         case 'stats':
             $stats = getGameStats();
             $response = "📊 <b>آمار ربات</b>\n\n" .
@@ -1373,13 +1356,13 @@ foreach ($games as $code => $game) {
 }
 
 // ============================================================
-// پردازش دستورات
+// 14. پردازش دستورات
 // ============================================================
 
 switch ($command) {
     // ===== دستورات اصلی =====
     case '/start':
-        $msg = "👋 سلام <b>$first_name</b>!\n🐺 ربات گرگینه فعاله!\n\n📱 یکی رو انتخاب کن:";
+        $msg = getLang('start', ['name' => $first_name]);
         $keyboard = [
             'inline_keyboard' => [
                 [['text' => '🎮 ساخت بازی', 'callback_data' => 'create_game'], ['text' => '🔗 پیوستن', 'callback_data' => 'join_menu']],
@@ -1442,27 +1425,7 @@ switch ($command) {
         break;
         
     case '/help':
-        $msg = "📚 <b>راهنمای ربات گرگینه</b>\n\n" .
-               "/start - منوی اصلی\n" .
-               "/game - ساخت بازی جدید (فقط در گروه)\n" .
-               "/join [کد] - پیوستن به بازی با کد\n" .
-               "/players - لیست بازیکنان\n" .
-               "/startgame - شروع بازی (حداقل ۴ نفر)\n" .
-               "/stop - لغو بازی\n" .
-               "/leave - خروج از بازی\n" .
-               "/extend - تمدید زمان انتظار (ادمین)\n" .
-               "/timing [fast|normal|slow] - تنظیم تایم (ادمین)\n" .
-               "/setlink [لینک] - تنظیم لینک گروه (ادمین)\n" .
-               "/removelink - حذف لینک گروه (ادمین)\n" .
-               "/coin - مشاهده سکه\n" .
-               "/sendcoin [کاربر] [مقدار] - ارسال سکه\n" .
-               "/shop - فروشگاه\n" .
-               "/buy [آیتم] - خرید آیتم\n" .
-               "/report [کاربر] [دلیل] - گزارش کاربر\n" .
-               "/score - مشاهده امتیاز\n" .
-               "/stats - آمار ربات\n" .
-               "/ping - تست اتصال";
-        sendMessage($chat_id, $msg);
+        sendMessage($chat_id, getLang('help'));
         break;
         
     case '/rules':
@@ -1532,7 +1495,7 @@ switch ($command) {
     // ===== سیستم سکه =====
     case '/coin':
         $coins = getCoin($user_id);
-        sendMessage($chat_id, "🪙 <b>سکه شما:</b> $coins");
+        sendMessage($chat_id, getLang('coin_balance', ['coins' => $coins]));
         break;
         
     case '/sendcoin':
@@ -1590,7 +1553,7 @@ switch ($command) {
     // ===== سیستم امتیاز =====
     case '/score':
         $score = getScore($user_id);
-        sendMessage($chat_id, "📊 <b>امتیاز شما:</b> $score");
+        sendMessage($chat_id, getLang('score', ['score' => $score]));
         break;
         
     // ===== حالت‌های مختلف بازی =====
@@ -1687,7 +1650,7 @@ switch ($command) {
         break;
         
     case '/ping':
-        sendMessage($chat_id, "🏓 Pong! زمان: " . date('H:i:s'));
+        sendMessage($chat_id, getLang('ping', ['time' => date('H:i:s')]));
         break;
         
     case '/info':
@@ -1710,7 +1673,7 @@ switch ($command) {
         break;
         
     default:
-        sendMessage($chat_id, "❌ دستور نامشخص!\nبرای راهنما /help را بزنید.");
+        sendMessage($chat_id, getLang('unknown_command'));
         break;
 }
 
