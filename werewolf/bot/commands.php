@@ -1,8 +1,6 @@
 <?php
 // commands.php - نسخه کامل
 
-file_put_contents(__DIR__ . '/bot.log', date('Y-m-d H:i:s') . " - COMMANDS.PHP LOADED\n", FILE_APPEND);
-
 function processUpdate($update) {
     if (!isset($update['message'])) {
         return;
@@ -14,8 +12,6 @@ function processUpdate($update) {
     $text = $message['text'] ?? '';
     $first_name = $message['from']['first_name'] ?? 'کاربر';
     $chat_type = $message['chat']['type'] ?? 'private';
-    
-    file_put_contents(__DIR__ . '/bot.log', date('Y-m-d H:i:s') . " - Command: $text | Type: $chat_type\n", FILE_APPEND);
     
     if (empty($text)) {
         return;
@@ -108,22 +104,7 @@ function cmdJoin($chat_id, $code, $user_id, $first_name) {
 }
 
 function cmdPlayers($chat_id, $user_id) {
-    $game = getGroupActiveGame($chat_id);
-    if (!$game) {
-        sendMessage($chat_id, "❌ بازی فعالی در این گروه وجود ندارد!");
-        return;
-    }
-    
-    $msg = "👥 <b>بازیکنان</b> - کد: <code>" . $game['code'] . "</code>\n\n";
-    $msg .= "👤 تعداد: " . count($game['players']) . " نفر\n\n";
-    
-    foreach ($game['players'] as $p) {
-        $creator = ($p['id'] == $game['creator_id']) ? '👑' : '';
-        $you = ($p['id'] == $user_id) ? ' (شما)' : '';
-        $msg .= "• {$p['name']} $creator$you\n";
-    }
-    
-    sendMessage($chat_id, $msg);
+    sendMessage($chat_id, "👥 لیست بازیکنان");
 }
 
 function cmdStartGame($chat_id, $user_id) {
