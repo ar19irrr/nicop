@@ -1,5 +1,5 @@
 <?php
-// game.php - نسخه فوق‌العاده ساده
+// game.php - نسخه نهایی و سالم
 
 function generateGameCode() {
     $chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -14,7 +14,7 @@ function createGame($group_id, $creator_id, $creator_name) {
     $code = generateGameCode();
     return [
         'success' => true,
-        'message' => "🐺 بازی ساخته شد!\n🎲 کد: <code>$code</code>",
+        'message' => "🐺 بازی ساخته شد!\n🎲 کد: <code>$code</code>\n👤 سازنده: $creator_name",
         'code' => $code
     ];
 }
