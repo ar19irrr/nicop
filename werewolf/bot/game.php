@@ -1,9 +1,16 @@
 <?php
 // game.php - نسخه ساده و خطاگیری شده
 
+function logMessage($msg) {
+    file_put_contents(__DIR__ . '/bot.log', date('Y-m-d H:i:s') . " - [GAME] " . $msg . "\n", FILE_APPEND);
+}
+
+logMessage("Game.php loaded");
+
 // ===== توابع اصلی =====
 
 function generateGameCode() {
+    logMessage("generateGameCode called");
     $chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     $code = '';
     for ($i = 0; $i < 6; $i++) {
@@ -13,9 +20,9 @@ function generateGameCode() {
 }
 
 function createGame($group_id, $creator_id, $creator_name) {
+    logMessage("createGame called for group: $group_id");
     try {
         $code = generateGameCode();
-        
         $game = [
             'code' => $code,
             'group_id' => $group_id,
@@ -27,32 +34,23 @@ function createGame($group_id, $creator_id, $creator_name) {
             'status' => 'waiting',
             'created' => time()
         ];
-        
         saveGame($game);
-        
-        return [
-            'success' => true,
-            'message' => "🐺 بازی ساخته شد!\n🎲 کد: <code>$code</code>",
-            'code' => $code
-        ];
+        logMessage("Game created with code: $code");
+        return ['success' => true, 'message' => "🐺 بازی ساخته شد!\n🎲 کد: <code>$code</code>", 'code' => $code];
     } catch (Exception $e) {
+        logMessage("ERROR: " . $e->getMessage());
         return ['success' => false, 'message' => '❌ خطا: ' . $e->getMessage()];
     }
 }
 
 function joinGame($code, $user_id, $user_name) {
+    logMessage("joinGame called for code: $code");
     try {
         $game = getGame($code);
-        if (!$game) {
-            return ['success' => false, 'message' => '❌ بازی پیدا نشد!'];
-        }
-        if ($game['status'] != 'waiting') {
-            return ['success' => false, 'message' => '⏳ بازی شروع شده!'];
-        }
+        if (!$game) return ['success' => false, 'message' => '❌ بازی پیدا نشد!'];
+        if ($game['status'] != 'waiting') return ['success' => false, 'message' => '⏳ بازی شروع شده!'];
         foreach ($game['players'] as $p) {
-            if ($p['id'] == $user_id) {
-                return ['success' => false, 'message' => '❌ شما در بازی هستید!'];
-            }
+            if ($p['id'] == $user_id) return ['success' => false, 'message' => '❌ شما در بازی هستید!'];
         }
         $game['players'][] = ['id' => $user_id, 'name' => $user_name, 'alive' => true];
         saveGame($game);
@@ -63,17 +61,12 @@ function joinGame($code, $user_id, $user_name) {
 }
 
 function startGame($group_id, $user_id = null) {
+    logMessage("startGame called for group: $group_id");
     try {
         $game = getGroupActiveGame($group_id);
-        if (!$game) {
-            return ['success' => false, 'message' => '❌ بازی نیست!'];
-        }
-        if ($game['status'] != 'waiting') {
-            return ['success' => false, 'message' => '⏳ شروع شده!'];
-        }
-        if (count($game['players']) < 4) {
-            return ['success' => false, 'message' => '❌ حداقل ۴ نفر!'];
-        }
+        if (!$game) return ['success' => false, 'message' => '❌ بازی نیست!'];
+        if ($game['status'] != 'waiting') return ['success' => false, 'message' => '⏳ شروع شده!'];
+        if (count($game['players']) < 4) return ['success' => false, 'message' => '❌ حداقل ۴ نفر!'];
         $game['status'] = 'started';
         saveGame($game);
         return ['success' => true, 'message' => "🎮 بازی با " . count($game['players']) . " نفر شروع شد!"];
@@ -83,11 +76,10 @@ function startGame($group_id, $user_id = null) {
 }
 
 function cancelGame($group_id, $user_id) {
+    logMessage("cancelGame called for group: $group_id");
     try {
         $game = getGroupActiveGame($group_id);
-        if (!$game) {
-            return ['success' => false, 'message' => '❌ بازی نیست!'];
-        }
+        if (!$game) return ['success' => false, 'message' => '❌ بازی نیست!'];
         deleteGame($game['code']);
         return ['success' => true, 'message' => '❌ بازی لغو شد!'];
     } catch (Exception $e) {
@@ -96,11 +88,10 @@ function cancelGame($group_id, $user_id) {
 }
 
 function leaveGame($user_id, $chat_id) {
+    logMessage("leaveGame called for user: $user_id");
     try {
         $game = getPlayerActiveGame($user_id);
-        if (!$game) {
-            return ['success' => false, 'message' => '❌ شما در بازی نیستید!'];
-        }
+        if (!$game) return ['success' => false, 'message' => '❌ شما در بازی نیستید!'];
         foreach ($game['players'] as $key => $p) {
             if ($p['id'] == $user_id) {
                 unset($game['players'][$key]);
@@ -122,11 +113,10 @@ function leaveGame($user_id, $chat_id) {
 // ===== توابع دیتابیس =====
 
 function getAllGames() {
+    logMessage("getAllGames called");
     $file = __DIR__ . '/data/games.json';
     if (!file_exists($file)) {
-        if (!is_dir(__DIR__ . '/data')) {
-            mkdir(__DIR__ . '/data', 0777, true);
-        }
+        if (!is_dir(__DIR__ . '/data')) mkdir(__DIR__ . '/data', 0777, true);
         file_put_contents($file, '{}');
         return [];
     }
@@ -134,19 +124,20 @@ function getAllGames() {
 }
 
 function saveAllGames($games) {
+    logMessage("saveAllGames called");
     $file = __DIR__ . '/data/games.json';
-    if (!is_dir(__DIR__ . '/data')) {
-        mkdir(__DIR__ . '/data', 0777, true);
-    }
+    if (!is_dir(__DIR__ . '/data')) mkdir(__DIR__ . '/data', 0777, true);
     file_put_contents($file, json_encode($games, JSON_PRETTY_PRINT));
 }
 
 function getGame($code) {
+    logMessage("getGame called for code: $code");
     $games = getAllGames();
     return $games[$code] ?? null;
 }
 
 function saveGame($game) {
+    logMessage("saveGame called");
     if (!isset($game['code'])) return false;
     $games = getAllGames();
     $games[$game['code']] = $game;
@@ -155,6 +146,7 @@ function saveGame($game) {
 }
 
 function deleteGame($code) {
+    logMessage("deleteGame called for code: $code");
     $games = getAllGames();
     unset($games[$code]);
     saveAllGames($games);
@@ -162,6 +154,7 @@ function deleteGame($code) {
 }
 
 function getGroupActiveGame($group_id) {
+    logMessage("getGroupActiveGame called for group: $group_id");
     $games = getAllGames();
     foreach ($games as $game) {
         if ($game['group_id'] == $group_id && in_array($game['status'] ?? '', ['waiting', 'started'])) {
@@ -172,6 +165,7 @@ function getGroupActiveGame($group_id) {
 }
 
 function getPlayerActiveGame($user_id) {
+    logMessage("getPlayerActiveGame called for user: $user_id");
     $games = getAllGames();
     foreach ($games as $game) {
         if (!in_array($game['status'] ?? '', ['waiting', 'started'])) continue;
@@ -221,10 +215,9 @@ function setGameTiming($group_id, $user_id, $timing) {
 }
 
 function getGameInfo($group_id) {
+    logMessage("getGameInfo called for group: $group_id");
     $game = getGroupActiveGame($group_id);
-    if (!$game) {
-        return ['success' => false, 'message' => '❌ بازی نیست!'];
-    }
+    if (!$game) return ['success' => false, 'message' => '❌ بازی نیست!'];
     $msg = "🎮 اطلاعات بازی\n";
     $msg .= "🎲 کد: <code>" . $game['code'] . "</code>\n";
     $msg .= "👤 سازنده: " . $game['creator_name'] . "\n";
@@ -267,4 +260,3 @@ function getGroupLinks() {
 function saveGroupLinks($links) {
     return true;
 }
-?>
