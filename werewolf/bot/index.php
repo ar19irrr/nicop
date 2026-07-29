@@ -422,11 +422,13 @@ function sendPlayerList($chat_id, $game) {
         $creator = ($p['id'] == $game['creator_id']) ? '👑' : '';
         $msg .= "• {$p['name']} $creator\n";
     }
-    $remaining = max(0, $game['wait_until'] - time());
-    $minutes = floor($remaining / 60);
-    $seconds = $remaining % 60;
-    $msg .= "\n⏱ زمان باقیمانده: $minutes:" . sprintf("%02d", $seconds);
-    $msg .= "\n\n⏰ برای تمدید ۳۰ ثانیه: /extend (فقط ادمین)";
+    if ($game['status'] == 'waiting' && isset($game['wait_until'])) {
+        $remaining = max(0, $game['wait_until'] - time());
+        $minutes = floor($remaining / 60);
+        $seconds = $remaining % 60;
+        $msg .= "\n⏱ زمان باقیمانده: $minutes:" . sprintf("%02d", $seconds);
+        $msg .= "\n\n⏰ برای تمدید ۳۰ ثانیه: /extend (فقط ادمین)";
+    }
     sendMessage($chat_id, $msg);
 }
 
