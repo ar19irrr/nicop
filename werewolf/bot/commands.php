@@ -1,6 +1,5 @@
 <?php
 // commands.php - ساده برای تست
-
 function processUpdate($update) {
     if (!isset($update['message'])) {
         return;
@@ -11,18 +10,12 @@ function processUpdate($update) {
     $text = $message['text'] ?? '';
     $first_name = $message['from']['first_name'] ?? 'کاربر';
     
-    file_put_contents(__DIR__ . '/debug.log', date('Y-m-d H:i:s') . " - Command: $text\n", FILE_APPEND);
-    
-    switch ($text) {
-        case '/start':
-            sendMessage($chat_id, "👋 سلام <b>$first_name</b>!\n🐺 ربات گرگینه روی Render اجرا شده!");
-            break;
-        case '/ping':
-            sendMessage($chat_id, "🏓 Pong! زمان: " . date('H:i:s'));
-            break;
-        default:
-            sendMessage($chat_id, "❌ دستور نامشخص!\n/start - منو\n/ping - تست");
-            break;
+    if ($text === '/start') {
+        sendMessage($chat_id, "👋 سلام <b>$first_name</b>!\n🐺 ربات گرگینه روی Render فعاله!");
+    } elseif ($text === '/ping') {
+        sendMessage($chat_id, "🏓 Pong! زمان: " . date('H:i:s'));
+    } else {
+        sendMessage($chat_id, "❌ دستور نامشخص!\n/start - منو\n/ping - تست");
     }
 }
 
@@ -41,6 +34,5 @@ function sendMessage($chat_id, $text) {
     $result = curl_exec($ch);
     curl_close($ch);
     
-    file_put_contents(__DIR__ . '/debug.log', date('Y-m-d H:i:s') . " - sendMessage: " . substr($result, 0, 100) . "\n", FILE_APPEND);
-    return json_decode($result, true);
+    return $result;
 }
