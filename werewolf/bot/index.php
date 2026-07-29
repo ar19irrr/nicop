@@ -1,5 +1,5 @@
 <?php
-// index.php - با تایمر ۶۰ ثانیه برای شب
+// index.php - نسخه کامل با تایمرها و اسکیپ
 
 $token = '8520546535:AAGUOnE7GYqTKb3jvt49DO_RatT8bgcWSNA';
 $bot_username = 'Ni_cop_bot';
@@ -26,6 +26,58 @@ function saveGames($games) {
     if (!is_dir($data_path)) mkdir($data_path, 0777, true);
     $file = $data_path . 'games.json';
     file_put_contents($file, json_encode($games, JSON_PRETTY_PRINT));
+}
+
+// ============================================================
+// بالانس پیشرفته
+// ============================================================
+
+function selectBalancedRoles($count) {
+    $roles = [];
+    
+    if ($count <= 4) {
+        $wolfCount = 1;
+        $specialCount = 0;
+    } elseif ($count <= 6) {
+        $wolfCount = 2;
+        $specialCount = 0;
+    } elseif ($count <= 8) {
+        $wolfCount = 2;
+        $specialCount = 1;
+    } elseif ($count <= 10) {
+        $wolfCount = 2;
+        $specialCount = 2;
+    } elseif ($count <= 14) {
+        $wolfCount = 3;
+        $specialCount = 3;
+    } elseif ($count <= 20) {
+        $wolfCount = 4;
+        $specialCount = 4;
+    } elseif ($count <= 30) {
+        $wolfCount = 5;
+        $specialCount = 6;
+    } else {
+        $wolfCount = round($count * 0.2);
+        $specialCount = round($count * 0.15);
+    }
+    
+    for ($i = 0; $i < $wolfCount; $i++) {
+        $roles[] = 'werewolf';
+    }
+    
+    $specialRoles = ['seer', 'guardian_angel', 'hunter', 'detective', 'knight'];
+    shuffle($specialRoles);
+    
+    for ($i = 0; $i < min($specialCount, count($specialRoles)); $i++) {
+        $roles[] = $specialRoles[$i];
+    }
+    
+    while (count($roles) < $count) {
+        $roles[] = 'villager';
+    }
+    
+    shuffle($roles);
+    return $roles;
 }
 
 // ============================================================
@@ -65,7 +117,9 @@ function createGame($group_id, $creator_id, $creator_name) {
         'day_count' => 0,
         'night_actions' => [],
         'votes' => [],
-        'night_end_time' => 0
+        'night_end_time' => 0,
+        'day_end_time' => 0,
+        'vote_end_time' => 0
     ];
     saveGames($games);
     
@@ -120,10 +174,7 @@ function startGame($group_id, $user_id) {
         return ['success' => false, 'message' => '❌ حداقل ۴ نفر نیاز است! (' . count($game['players']) . '/4)'];
     }
     
-    $roles = ['villager', 'villager', 'werewolf', 'seer'];
-    while (count($roles) < count($game['players'])) {
-        $roles[] = 'villager';
-    }
+    $roles = selectBalancedRoles(count($game['players']));
     shuffle($roles);
     
     foreach ($game['players'] as $i => &$p) {
@@ -135,12 +186,13 @@ function startGame($group_id, $user_id) {
     $game['night_count'] = 1;
     $game['night_actions'] = [];
     $game['votes'] = [];
-    $game['night_end_time'] = time() + 60; // 60 ثانیه
+    $game['night_end_time'] = time() + 60;
     $games[$game_code] = $game;
     saveGames($games);
     
     foreach ($game['players'] as $p) {
-        sendPrivateMessage($p['id'], "🎭 <b>نقش شما: " . getRoleDisplayName($p['role']) . "</b>\n\n🌙 شب اول شروع شد...");
+        sendPrivateMessage($p['id'], "🎭 <b>نقش شما: " . getRoleDisplayName($p['role']) . "</b>\n\n" .
+            getRoleDescription($p['role']) . "\n\n🌙 شب اول شروع شد...");
         sendNightPanel($p, $game);
     }
     
@@ -151,7 +203,7 @@ function startGame($group_id, $user_id) {
 
 function sendNightPanel($player, $game) {
     $role = $player['role'];
-    $nightRoles = ['werewolf', 'seer'];
+    $nightRoles = ['werewolf', 'seer', 'guardian_angel', 'hunter', 'detective'];
     
     if (!in_array($role, $nightRoles)) {
         sendPrivateMessage($player['id'], "🌙 <b>شب " . $game['night_count'] . "</b>\n\n💤 تو می‌تونی بخوابی...");
@@ -165,6 +217,8 @@ function sendNightPanel($player, $game) {
     
     foreach ($alivePlayers as $p) {
         if ($role == 'werewolf' && $p['role'] == 'werewolf') continue;
+        if ($role == 'guardian_angel' && $p['role'] == 'guardian_angel') continue;
+        if ($role == 'detective' && $p['role'] == 'detective') continue;
         $targets[] = ['id' => $p['id'], 'name' => $p['name']];
     }
     
@@ -175,7 +229,8 @@ function sendNightPanel($player, $game) {
     
     $msg = "🌙 <b>شب " . $game['night_count'] . "</b>\n\n";
     $msg .= "🎭 نقش: " . getRoleDisplayName($role) . "\n\n";
-    $msg .= "👇 یک نفر رو انتخاب کن:";
+    $msg .= getRoleActionDescription($role) . "\n\n";
+    $msg .= "👇 یک نفر رو انتخاب کن (یا Skip):";
     
     $keyboard = [];
     $row = [];
@@ -189,19 +244,47 @@ function sendNightPanel($player, $game) {
     if (!empty($row)) {
         $keyboard[] = $row;
     }
+    // دکمه اسکیپ
+    $keyboard[] = [['text' => '⏭️ Skip (رد کردن)', 'callback_data' => $role . '_skip']];
     
     sendPrivateMessage($player['id'], $msg, ['inline_keyboard' => $keyboard]);
 }
 
 function processNight($game_code, $game) {
     $deaths = [];
+    $protected = [];
+    $seer_results = [];
+    
+    // محافظت فرشته نگهبان
+    foreach ($game['night_actions'] as $action) {
+        if ($action['role'] == 'guardian_angel') {
+            $protected[] = $action['target'];
+        }
+    }
+    
+    // حمله گرگ‌ها
     foreach ($game['night_actions'] as $action) {
         if ($action['role'] == 'werewolf') {
             $target = $action['target'];
-            foreach ($game['players'] as &$p) {
-                if ($p['id'] == $target) {
-                    $p['alive'] = false;
-                    $deaths[] = $p['name'];
+            if (!in_array($target, $protected)) {
+                foreach ($game['players'] as &$p) {
+                    if ($p['id'] == $target) {
+                        $p['alive'] = false;
+                        $deaths[] = $p['name'];
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    
+    // نتیجه پیشگو (فقط به خودش)
+    foreach ($game['night_actions'] as $action) {
+        if ($action['role'] == 'seer') {
+            $target_id = $action['target'];
+            foreach ($game['players'] as $p) {
+                if ($p['id'] == $target_id) {
+                    sendPrivateMessage($action['player'], "🔮 نقش " . $p['name'] . ": " . getRoleDisplayName($p['role']));
                     break;
                 }
             }
@@ -213,6 +296,8 @@ function processNight($game_code, $game) {
     $game['votes'] = [];
     $game['night_actions'] = [];
     $game['night_end_time'] = 0;
+    $game['day_end_time'] = time() + 60; // 60 ثانیه بحث
+    $game['vote_end_time'] = 0;
     
     $games = loadGames();
     $games[$game_code] = $game;
@@ -225,10 +310,8 @@ function processNight($game_code, $game) {
         $msg .= "✨ <b>امشب کسی نمرد!</b>\n\n";
     }
     
-    $msg .= "🗳️ <b>زمان رأی‌گیری!</b>\nبه صورت خصوصی به ربات پیام دهید.";
+    $msg .= "🗣️ <b>زمان بحث!</b>\n⏱ ۶۰ ثانیه وقت دارید.\nبعدش رأی‌گیری شروع می‌شه.";
     sendMessage($game['group_id'], $msg);
-    
-    startVoting($game);
 }
 
 function startVoting($game) {
@@ -237,6 +320,21 @@ function startVoting($game) {
         endGame($game);
         return;
     }
+    
+    $game['phase'] = 'vote';
+    $game['votes'] = [];
+    $game['vote_end_time'] = time() + 60;
+    
+    $games = loadGames();
+    foreach ($games as $code => $g) {
+        if ($g['group_id'] == $game['group_id']) {
+            $games[$code] = $game;
+            break;
+        }
+    }
+    saveGames($games);
+    
+    sendMessage($game['group_id'], "🗳️ <b>زمان رأی‌گیری!</b>\n⏱ ۶۰ ثانیه وقت دارید.\nبه صورت خصوصی به ربات پیام دهید.");
     
     foreach ($alivePlayers as $p) {
         sendVotePanel($p, $game);
@@ -300,6 +398,8 @@ function processVotes($game_code, $game) {
     }
     
     $game['votes'] = [];
+    $game['vote_end_time'] = 0;
+    $game['day_end_time'] = 0;
     $games = loadGames();
     $games[$game_code] = $game;
     saveGames($games);
@@ -362,15 +462,46 @@ function endGame($game) {
     sendMessage($game['group_id'], "🏁 <b>بازی تمام شد!</b>");
 }
 
+// ============================================================
+// توابع نقش‌ها
+// ============================================================
+
 function getRoleDisplayName($role) {
     $names = [
         'villager' => '👨‍🌾 روستایی ساده',
         'seer' => '👳🏻‍♂️ پیشگو',
         'werewolf' => '🐺 گرگینه',
         'guardian_angel' => '👼🏻 فرشته نگهبان',
-        'hunter' => '👮🏻‍♂️ کلانتر'
+        'hunter' => '👮🏻‍♂️ کلانتر',
+        'detective' => '🕵🏻‍♂️ کاراگاه',
+        'knight' => '🗡 شوالیه'
     ];
     return $names[$role] ?? '❓ ' . $role;
+}
+
+function getRoleDescription($role) {
+    $desc = [
+        'villager' => '👨‍🌾 شما یک روستایی ساده هستید. در روز رأی می‌دهید.',
+        'seer' => '👳🏻‍♂️ شما پیشگو هستید! هر شب نقش یک نفر را می‌بینید.',
+        'werewolf' => '🐺 شما گرگینه هستید! هر شب یک نفر را می‌خورید.',
+        'guardian_angel' => '👼🏻 شما فرشته نگهبان هستید! هر شب از یک نفر محافظت می‌کنید.',
+        'hunter' => '👮🏻‍♂️ شما کلانتر هستید! اگر بمیرید، می‌توانید به یک نفر شلیک کنید.',
+        'detective' => '🕵🏻‍♂️ شما کاراگاه هستید! هر شب یک نفر را تحقیق می‌کنید.',
+        'knight' => '🗡 شما شوالیه هستید! هر شب می‌توانید از یک نفر محافظت کنید.'
+    ];
+    return $desc[$role] ?? '';
+}
+
+function getRoleActionDescription($role) {
+    $actions = [
+        'werewolf' => '🐺 یک نفر را برای خوردن انتخاب کن.',
+        'seer' => '👁️ یک نفر را برای دیدن نقش انتخاب کن.',
+        'guardian_angel' => '🛡️ یک نفر را برای محافظت انتخاب کن.',
+        'hunter' => '🔫 یک نفر را برای شلیک انتخاب کن.',
+        'detective' => '🔍 یک نفر را برای تحقیق انتخاب کن.',
+        'knight' => '🗡 یک نفر را برای محافظت انتخاب کن.'
+    ];
+    return $actions[$role] ?? '';
 }
 
 function getRules() {
@@ -386,7 +517,9 @@ function getRolesList() {
            "👳🏻‍♂️ پیشگو - هر شب نقش یک نفر را می‌بیند\n" .
            "👨‍🌾 روستایی - در روز رأی می‌دهد\n" .
            "👼🏻 فرشته نگهبان - هر شب از یک نفر محافظت می‌کند\n" .
-           "👮🏻‍♂️ کلانتر - اگر بمیرد، می‌تواند به یک نفر شلیک کند";
+           "👮🏻‍♂️ کلانتر - اگر بمیرد، می‌تواند به یک نفر شلیک کند\n" .
+           "🕵🏻‍♂️ کاراگاه - هر شب یک نفر را تحقیق می‌کند\n" .
+           "🗡 شوالیه - هر شب از یک نفر محافظت می‌کند";
 }
 
 function sendPrivateMessage($user_id, $text, $keyboard = null) {
@@ -435,11 +568,11 @@ if (isset($update['callback_query'])) {
     $data = $callback['data'];
     $user_id = $callback['from']['id'];
     
-    // پردازش اکشن شب
+    // پردازش اکشن شب (با پشتیبانی از skip)
     $parts = explode('_', $data);
-    if (count($parts) == 2 && in_array($parts[0], ['werewolf', 'seer'])) {
+    if (count($parts) == 2 && in_array($parts[0], ['werewolf', 'seer', 'guardian_angel', 'hunter', 'detective'])) {
         $role = $parts[0];
-        $target_id = (int)$parts[1];
+        $target_id = $parts[1] == 'skip' ? 'skip' : (int)$parts[1];
         
         $games = loadGames();
         $game = null;
@@ -455,11 +588,15 @@ if (isset($update['callback_query'])) {
         }
         
         if ($game) {
-            $game['night_actions'][] = ['player' => $user_id, 'role' => $role, 'target' => $target_id];
-            $games[$game_code] = $game;
-            saveGames($games);
-            answerCallbackQuery($callback_id, "✅ انتخاب شما ثبت شد!");
-            sendPrivateMessage($user_id, "✅ انتخاب شما برای شب " . $game['night_count'] . " ثبت شد.");
+            if ($target_id != 'skip') {
+                $game['night_actions'][] = ['player' => $user_id, 'role' => $role, 'target' => $target_id];
+                saveGames($games);
+                answerCallbackQuery($callback_id, "✅ انتخاب شما ثبت شد!");
+                sendPrivateMessage($user_id, "✅ انتخاب شما برای شب " . $game['night_count'] . " ثبت شد.");
+            } else {
+                answerCallbackQuery($callback_id, "⏭️ شما این شب رو رد کردید.");
+                sendPrivateMessage($user_id, "⏭️ شما این شب رو رد کردید.");
+            }
         } else {
             answerCallbackQuery($callback_id, "❌ خطا: بازی پیدا نشد!", true);
         }
@@ -479,7 +616,7 @@ if (isset($update['callback_query'])) {
         $game_code = null;
         foreach ($games as $code => $g) {
             foreach ($g['players'] as $p) {
-                if ($p['id'] == $user_id && in_array($g['status'], ['started']) && $g['phase'] == 'day') {
+                if ($p['id'] == $user_id && in_array($g['status'], ['started']) && $g['phase'] == 'vote') {
                     $game = $g;
                     $game_code = $code;
                     break 2;
@@ -549,13 +686,23 @@ $parts = explode(' ', $text);
 $command = strtolower($parts[0]);
 $param = $parts[1] ?? '';
 
-// ===== چک کردن تایمر شب =====
+// ===== چک کردن تایمرها =====
 $games = loadGames();
 foreach ($games as $code => $game) {
-    if ($game['group_id'] == $chat_id && $game['status'] == 'started' && $game['phase'] == 'night') {
-        if ($game['night_end_time'] > 0 && time() >= $game['night_end_time']) {
+    if ($game['group_id'] == $chat_id && $game['status'] == 'started') {
+        // چک کردن پایان شب
+        if ($game['phase'] == 'night' && $game['night_end_time'] > 0 && time() >= $game['night_end_time']) {
             processNight($code, $game);
             sendMessage($chat_id, "⏰ شب به پایان رسید! صبح شد...");
+        }
+        // چک کردن پایان روز (شروع رأی‌گیری)
+        elseif ($game['phase'] == 'day' && $game['day_end_time'] > 0 && time() >= $game['day_end_time']) {
+            startVoting($game);
+            sendMessage($chat_id, "⏰ زمان بحث تمام شد! رأی‌گیری شروع می‌شود...");
+        }
+        // چک کردن پایان رأی‌گیری
+        elseif ($game['phase'] == 'vote' && $game['vote_end_time'] > 0 && time() >= $game['vote_end_time']) {
+            processVotes($code, $game);
         }
         break;
     }
