@@ -1,12 +1,15 @@
 <?php
-// index.php - نسخه کامل با همه دستورات و توابع
+// ============================================================
+// تنظیمات اصلی
+// ============================================================
 
 $token = '8520546535:AAGUOnE7GYqTKb3jvt49DO_RatT8bgcWSNA';
 $bot_username = 'Ni_cop_bot';
 $data_path = __DIR__ . '/data/';
+$admin_id = 1095925103; // آیدی ادمین اصلی
 
 // ============================================================
-// دیتابیس
+// دیتابیس‌ها
 // ============================================================
 
 function loadGames() {
@@ -28,6 +31,78 @@ function saveGames($games) {
     file_put_contents($file, json_encode($games, JSON_PRETTY_PRINT));
 }
 
+function loadCoins() {
+    global $data_path;
+    $file = $data_path . 'coins.json';
+    if (!file_exists($file)) {
+        file_put_contents($file, '{}');
+        return [];
+    }
+    $content = file_get_contents($file);
+    return json_decode($content, true) ?: [];
+}
+
+function saveCoins($coins) {
+    global $data_path;
+    if (!is_dir($data_path)) mkdir($data_path, 0777, true);
+    $file = $data_path . 'coins.json';
+    file_put_contents($file, json_encode($coins, JSON_PRETTY_PRINT));
+}
+
+function loadReports() {
+    global $data_path;
+    $file = $data_path . 'reports.json';
+    if (!file_exists($file)) {
+        file_put_contents($file, '[]');
+        return [];
+    }
+    $content = file_get_contents($file);
+    return json_decode($content, true) ?: [];
+}
+
+function saveReports($reports) {
+    global $data_path;
+    if (!is_dir($data_path)) mkdir($data_path, 0777, true);
+    $file = $data_path . 'reports.json';
+    file_put_contents($file, json_encode($reports, JSON_PRETTY_PRINT));
+}
+
+function loadGroupSettings() {
+    global $data_path;
+    $file = $data_path . 'group_settings.json';
+    if (!file_exists($file)) {
+        file_put_contents($file, '{}');
+        return [];
+    }
+    $content = file_get_contents($file);
+    return json_decode($content, true) ?: [];
+}
+
+function saveGroupSettings($settings) {
+    global $data_path;
+    if (!is_dir($data_path)) mkdir($data_path, 0777, true);
+    $file = $data_path . 'group_settings.json';
+    file_put_contents($file, json_encode($settings, JSON_PRETTY_PRINT));
+}
+
+function loadPurchasedItems() {
+    global $data_path;
+    $file = $data_path . 'purchased.json';
+    if (!file_exists($file)) {
+        file_put_contents($file, '{}');
+        return [];
+    }
+    $content = file_get_contents($file);
+    return json_decode($content, true) ?: [];
+}
+
+function savePurchasedItems($items) {
+    global $data_path;
+    if (!is_dir($data_path)) mkdir($data_path, 0777, true);
+    $file = $data_path . 'purchased.json';
+    file_put_contents($file, json_encode($items, JSON_PRETTY_PRINT));
+}
+
 function loadLinks() {
     global $data_path;
     if (!is_dir($data_path)) mkdir($data_path, 0777, true);
@@ -47,84 +122,229 @@ function saveLinks($links) {
     file_put_contents($file, json_encode($links, JSON_PRETTY_PRINT));
 }
 
+function loadScores() {
+    global $data_path;
+    $file = $data_path . 'scores.json';
+    if (!file_exists($file)) {
+        file_put_contents($file, '{}');
+        return [];
+    }
+    $content = file_get_contents($file);
+    return json_decode($content, true) ?: [];
+}
+
+function saveScores($scores) {
+    global $data_path;
+    if (!is_dir($data_path)) mkdir($data_path, 0777, true);
+    $file = $data_path . 'scores.json';
+    file_put_contents($file, json_encode($scores, JSON_PRETTY_PRINT));
+}
+
 // ============================================================
-// بالانس همه نقش‌ها
+// سیستم سکه
 // ============================================================
 
-function selectBalancedRoles($count) {
-    $roles = [];
+function getCoin($user_id) {
+    $coins = loadCoins();
+    return $coins[$user_id] ?? 0;
+}
+
+function addCoin($user_id, $amount) {
+    $coins = loadCoins();
+    $coins[$user_id] = ($coins[$user_id] ?? 0) + $amount;
+    saveCoins($coins);
+    return $coins[$user_id];
+}
+
+function removeCoin($user_id, $amount) {
+    $coins = loadCoins();
+    $current = $coins[$user_id] ?? 0;
+    if ($current < $amount) return false;
+    $coins[$user_id] = $current - $amount;
+    saveCoins($coins);
+    return true;
+}
+
+function sendCoin($from_id, $to_id, $amount) {
+    if (!removeCoin($from_id, $amount)) return false;
+    addCoin($to_id, $amount);
+    return true;
+}
+
+function getShopItems() {
+    return [
+        ['id' => 'role_guardian', 'name' => '👼 فرشته نگهبان', 'price' => 500],
+        ['id' => 'role_hunter', 'name' => '👮 کلانتر', 'price' => 800],
+        ['id' => 'role_serial', 'name' => '🔪 قاتل زنجیره‌ای', 'price' => 1200],
+        ['id' => 'role_vampire', 'name' => '🧛 ومپایر', 'price' => 1500],
+        ['id' => 'role_cultist', 'name' => '👤 فرقه‌گرا', 'price' => 1000],
+        ['id' => 'role_joker', 'name' => '🤡 جوکر', 'price' => 2000],
+        ['id' => 'reset_role', 'name' => '🔄 ریست نقش', 'price' => 300],
+        ['id' => 'free_coin', 'name' => '🪙 ۱۰۰ سکه رایگان', 'price' => 0]
+    ];
+}
+
+function buyItem($user_id, $item_id) {
+    $items = getShopItems();
+    $item = null;
+    foreach ($items as $i) {
+        if ($i['id'] == $item_id) {
+            $item = $i;
+            break;
+        }
+    }
+    if (!$item) return ['success' => false, 'message' => '❌ آیتم نامعتبر!'];
+    if ($item['price'] == 0) {
+        addCoin($user_id, 100);
+        return ['success' => true, 'message' => "✅ ۱۰۰ سکه رایگان دریافت شد!"];
+    }
+    if (!removeCoin($user_id, $item['price'])) {
+        return ['success' => false, 'message' => '❌ سکه کافی نیست!'];
+    }
+    $purchased = loadPurchasedItems();
+    if (!isset($purchased[$user_id])) $purchased[$user_id] = [];
+    $purchased[$user_id][] = $item_id;
+    savePurchasedItems($purchased);
+    return ['success' => true, 'message' => "✅ {$item['name']} خریداری شد!"];
+}
+
+// ============================================================
+// سیستم امتیاز
+// ============================================================
+
+function getScore($user_id) {
+    $scores = loadScores();
+    return $scores[$user_id] ?? 0;
+}
+
+function addScore($user_id, $amount) {
+    $scores = loadScores();
+    $scores[$user_id] = ($scores[$user_id] ?? 0) + $amount;
+    saveScores($scores);
+    return $scores[$user_id];
+}
+
+function getTopScores($limit = 10) {
+    $scores = loadScores();
+    arsort($scores);
+    return array_slice($scores, 0, $limit, true);
+}
+
+// ============================================================
+// سیستم گزارش
+// ============================================================
+
+function addReport($reporter_id, $reported_id, $reason, $game_code = null) {
+    $reports = loadReports();
+    $reports[] = [
+        'id' => count($reports) + 1,
+        'reporter_id' => $reporter_id,
+        'reported_id' => $reported_id,
+        'reason' => $reason,
+        'game_code' => $game_code,
+        'status' => 'pending',
+        'created' => time()
+    ];
+    saveReports($reports);
+    return true;
+}
+
+function getPendingReports() {
+    $reports = loadReports();
+    return array_filter($reports, fn($r) => $r['status'] == 'pending');
+}
+
+function resolveReport($report_id, $action) {
+    $reports = loadReports();
+    foreach ($reports as &$r) {
+        if ($r['id'] == $report_id) {
+            $r['status'] = $action;
+            break;
+        }
+    }
+    saveReports($reports);
+    return true;
+}
+
+// ============================================================
+// سیستم تنظیمات گروه
+// ============================================================
+
+function getGroupSetting($group_id, $key, $default = null) {
+    $settings = loadGroupSettings();
+    return $settings[$group_id][$key] ?? $default;
+}
+
+function setGroupSetting($group_id, $key, $value) {
+    $settings = loadGroupSettings();
+    if (!isset($settings[$group_id])) $settings[$group_id] = [];
+    $settings[$group_id][$key] = $value;
+    saveGroupSettings($settings);
+}
+
+function getGroupSettingsMenu($group_id) {
+    $lang = getGroupSetting($group_id, 'lang', 'fa');
+    $mode = getGroupSetting($group_id, 'game_mode', 'normal');
+    $night_time = getGroupSetting($group_id, 'night_time', 60);
+    $day_time = getGroupSetting($group_id, 'day_time', 60);
+    $vote_time = getGroupSetting($group_id, 'vote_time', 60);
     
-    $villager_roles = ['villager', 'seer', 'apprentice_seer', 'guardian_angel', 'knight', 
-                       'hunter', 'harlot', 'builder', 'blacksmith', 'gunner', 'mayor',
-                       'prince', 'detective', 'cupid', 'beholder', 'phoenix', 'huntsman',
-                       'trouble', 'chemist', 'fool', 'clumsy', 'cursed', 'traitor',
-                       'wild_child', 'wise_elder', 'sandman', 'sweetheart', 'ruler',
-                       'spy', 'marouf', 'cult_hunter', 'hamal', 'jumong', 'princess',
-                       'wolf_man', 'drunk'];
+    $msg = "⚙️ <b>تنظیمات گروه</b>\n\n";
+    $msg .= "🌐 زبان: " . ($lang == 'fa' ? 'فارسی' : 'English') . "\n";
+    $msg .= "🎮 حالت بازی: " . ucfirst($mode) . "\n";
+    $msg .= "🌙 زمان شب: {$night_time}s\n";
+    $msg .= "☀️ زمان روز: {$day_time}s\n";
+    $msg .= "🗳️ زمان رأی: {$vote_time}s\n\n";
+    $msg .= "برای تغییر، از دستورات زیر استفاده کنید:\n";
+    $msg .= "/setlang [fa|en] - تغییر زبان\n";
+    $msg .= "/setmode [normal|easy|mafia|vampire|werewolf] - تغییر حالت\n";
+    $msg .= "/setnight [seconds] - تغییر زمان شب\n";
+    $msg .= "/setday [seconds] - تغییر زمان روز\n";
+    $msg .= "/setvote [seconds] - تغییر زمان رأی";
     
-    $wolf_roles = ['werewolf', 'alpha_wolf', 'wolf_cub', 'lycan', 'forest_queen',
-                   'white_wolf', 'beta_wolf', 'ice_wolf', 'enchanter', 'honey', 'sorcerer'];
-    
-    if ($count <= 4) {
-        $roles = ['villager', 'villager', 'villager', 'werewolf'];
-        shuffle($roles);
-        return $roles;
+    return $msg;
+}
+
+// ============================================================
+// سیستم حالت‌های بازی
+// ============================================================
+
+function getGameModes() {
+    return [
+        'normal' => ['name' => 'عادی', 'description' => 'حالت استاندارد بازی'],
+        'easy' => ['name' => 'آسان', 'description' => 'نقش‌های ساده‌تر برای مبتدیان'],
+        'mafia' => ['name' => 'مافیا', 'description' => 'حالت کلاسیک مافیا'],
+        'vampire' => ['name' => 'ومپایر', 'description' => 'حالت با نقش‌های ومپایر'],
+        'werewolf' => ['name' => 'گرگینه', 'description' => 'حالت با نقش‌های گرگینه'],
+        'bomber' => ['name' => 'بمب‌گذار', 'description' => 'حالت با نقش بمب‌گذار'],
+        'foolish' => ['name' => 'احمقانه', 'description' => 'حالت با نقش احمق'],
+        'mighty' => ['name' => 'قدرتمند', 'description' => 'حالت با نقش‌های قدرتمند'],
+        'romantic' => ['name' => 'عاشقانه', 'description' => 'حالت با نقش الهه عشق'],
+        'coin' => ['name' => 'سکه‌ای', 'description' => 'حالت با سیستم سکه']
+    ];
+}
+
+function startGameWithMode($group_id, $user_id, $mode) {
+    $modes = getGameModes();
+    if (!isset($modes[$mode])) {
+        return ['success' => false, 'message' => '❌ حالت نامعتبر!'];
     }
     
-    if ($count <= 6) {
-        $roles = array_merge(array_fill(0, $count - 2, 'villager'), ['werewolf', 'werewolf']);
-        shuffle($roles);
-        return $roles;
+    $game = getGroupActiveGame($group_id);
+    if ($game && $game['status'] == 'waiting') {
+        return ['success' => false, 'message' => '⏳ یک بازی در حال انتظار وجود دارد!'];
     }
     
-    if ($count <= 8) {
-        $special = ['seer'];
-        $roles = array_merge(array_fill(0, $count - 3, 'villager'), ['werewolf', 'werewolf'], $special);
-        shuffle($roles);
-        return $roles;
-    }
+    $result = createGame($group_id, $user_id, 'کاربر');
+    if (!$result['success']) return $result;
     
-    if ($count <= 10) {
-        $special = ['seer', 'guardian_angel'];
-        $roles = array_merge(array_fill(0, $count - 4, 'villager'), ['werewolf', 'werewolf'], $special);
-        shuffle($roles);
-        return $roles;
-    }
+    // تنظیم حالت بازی
+    $games = loadGames();
+    $code = $result['code'];
+    $games[$code]['game_mode'] = $mode;
+    saveGames($games);
     
-    if ($count <= 14) {
-        shuffle($villager_roles);
-        $special = array_slice($villager_roles, 0, 3);
-        $roles = array_merge(array_fill(0, $count - 6, 'villager'), ['werewolf', 'werewolf', 'werewolf'], $special);
-        shuffle($roles);
-        return $roles;
-    }
-    
-    if ($count <= 20) {
-        shuffle($villager_roles);
-        $special = array_slice($villager_roles, 0, 4);
-        $roles = array_merge(array_fill(0, $count - 8, 'villager'), ['werewolf', 'werewolf', 'werewolf', 'werewolf'], $special);
-        shuffle($roles);
-        return $roles;
-    }
-    
-    if ($count <= 30) {
-        shuffle($villager_roles);
-        $special = array_slice($villager_roles, 0, 6);
-        $roles = array_merge(array_fill(0, $count - 11, 'villager'), ['werewolf', 'werewolf', 'werewolf', 'werewolf', 'werewolf'], $special);
-        shuffle($roles);
-        return $roles;
-    }
-    
-    $wolf_count = round($count * 0.2);
-    $special_count = round($count * 0.15);
-    
-    $all_special = array_merge($villager_roles, $wolf_roles);
-    shuffle($all_special);
-    $special = array_slice($all_special, 0, $special_count);
-    
-    $roles = array_merge(array_fill(0, $count - $wolf_count - count($special), 'villager'), array_fill(0, $wolf_count, 'werewolf'), $special);
-    shuffle($roles);
-    return $roles;
+    return ['success' => true, 'message' => "🎮 بازی با حالت <b>{$modes[$mode]['name']}</b> ساخته شد!\n🎲 کد: <code>$code</code>\n📝 {$modes[$mode]['description']}"];
 }
 
 // ============================================================
@@ -171,7 +391,8 @@ function createGame($group_id, $creator_id, $creator_name) {
         'vote_end_time' => 0,
         'day_duration' => 60,
         'night_duration' => 60,
-        'vote_duration' => 60
+        'vote_duration' => 60,
+        'game_mode' => 'normal'
     ];
     saveGames($games);
     
@@ -214,6 +435,69 @@ function joinGame($code, $user_id, $user_name) {
     return ['success' => true, 'message' => "✅ $user_name به بازی پیوست!\n👥 تعداد: " . count($game['players']) . " نفر"];
 }
 
+function getGameInfo($group_id) {
+    $games = loadGames();
+    foreach ($games as $game) {
+        if ($game['group_id'] == $group_id && in_array($game['status'], ['waiting', 'started'])) {
+            return $game;
+        }
+    }
+    return null;
+}
+
+function getGroupActiveGame($group_id) {
+    $games = loadGames();
+    foreach ($games as $game) {
+        if ($game['group_id'] == $group_id && in_array($game['status'], ['waiting', 'started'])) {
+            return $game;
+        }
+    }
+    return null;
+}
+
+function getPlayerActiveGame($user_id) {
+    $games = loadGames();
+    foreach ($games as $game) {
+        if (!in_array($game['status'], ['waiting', 'started'])) continue;
+        foreach ($game['players'] as $p) {
+            if ($p['id'] == $user_id) return $game;
+        }
+    }
+    return null;
+}
+
+function getAlivePlayers($game) {
+    return array_filter($game['players'] ?? [], fn($p) => $p['alive'] ?? false);
+}
+
+function getPlayerById($game, $id) {
+    foreach ($game['players'] ?? [] as $p) {
+        if ($p['id'] == $id) return $p;
+    }
+    return null;
+}
+
+function isAdmin($user_id, $group_id) {
+    return true;
+}
+
+function cancelGame($chat_id, $user_id) {
+    $games = loadGames();
+    $found = false;
+    foreach ($games as $code => $game) {
+        if ($game['group_id'] == $chat_id && $game['status'] == 'waiting') {
+            unset($games[$code]);
+            saveGames($games);
+            $found = true;
+            break;
+        }
+    }
+    if ($found) {
+        return ['success' => true, 'message' => '❌ بازی لغو شد!'];
+    }
+    return ['success' => false, 'message' => '❌ بازی فعالی برای لغو وجود ندارد!'];
+}
+
 function leaveGame($chat_id, $user_id) {
     $games = loadGames();
     $found = false;
@@ -241,97 +525,10 @@ function leaveGame($chat_id, $user_id) {
     return ['success' => false, 'message' => '❌ شما در هیچ بازی فعالی نیستید!'];
 }
 
-function getGameInfo($group_id) {
-    $games = loadGames();
-    foreach ($games as $game) {
-        if ($game['group_id'] == $group_id && in_array($game['status'], ['waiting', 'started'])) {
-            return $game;
-        }
-    }
-    return null;
-}
-
-function getPlayerActiveGame($user_id) {
-    $games = loadGames();
-    foreach ($games as $game) {
-        if (!in_array($game['status'], ['waiting', 'started'])) continue;
-        foreach ($game['players'] as $p) {
-            if ($p['id'] == $user_id) return $game;
-        }
-    }
-    return null;
-}
-
-function startGame($group_id, $user_id) {
-    $games = loadGames();
-    $game = null;
-    $game_code = null;
-    foreach ($games as $code => $g) {
-        if ($g['group_id'] == $group_id && $g['status'] == 'waiting') {
-            $game = $g;
-            $game_code = $code;
-            break;
-        }
-    }
-    if (!$game) {
-        return ['success' => false, 'message' => '❌ بازی فعالی برای شروع وجود ندارد!'];
-    }
-    if (count($game['players']) < 4) {
-        return ['success' => false, 'message' => '❌ حداقل ۴ نفر نیاز است! (' . count($game['players']) . '/4)'];
-    }
-    
-    $roles = selectBalancedRoles(count($game['players']));
-    shuffle($roles);
-    
-    foreach ($game['players'] as $i => &$p) {
-        $p['role'] = $roles[$i];
-    }
-    
-    $game['status'] = 'started';
-    $game['phase'] = 'night';
-    $game['night_count'] = 1;
-    $game['night_actions'] = [];
-    $game['votes'] = [];
-    $game['night_end_time'] = time() + ($game['night_duration'] ?? 60);
-    $games[$game_code] = $game;
-    saveGames($games);
-    
-    foreach ($game['players'] as $p) {
-        $role_name = getRoleDisplayName($p['role']);
-        $role_desc = getRoleDescription($p['role']);
-        sendPrivateMessage($p['id'], "🎭 <b>نقش شما: " . $role_name . "</b>\n\n" . $role_desc . "\n\n🌙 شب اول شروع شد...");
-        sendNightPanel($p, $game);
-    }
-    
-    sendMessage($group_id, "🌙 <b>شب " . $game['night_count'] . "!</b>\n\nهمه بخوابید...\n⏱ {$game['night_duration']} ثانیه تا صبح");
-    
-    return ['success' => true, 'message' => "🎮 <b>بازی شروع شد!</b>\n\n👥 " . count($game['players']) . " نفر\n🌙 شب اول..."];
-}
-
-function cancelGame($chat_id, $user_id) {
-    $games = loadGames();
-    $found = false;
-    foreach ($games as $code => $game) {
-        if ($game['group_id'] == $chat_id && $game['status'] == 'waiting') {
-            unset($games[$code]);
-            saveGames($games);
-            $found = true;
-            break;
-        }
-    }
-    if ($found) {
-        return ['success' => true, 'message' => '❌ بازی لغو شد!'];
-    }
-    return ['success' => false, 'message' => '❌ بازی فعالی برای لغو وجود ندارد!'];
-}
-
 function extendWaitingTime($chat_id, $user_id) {
     $games = loadGames();
     foreach ($games as $code => $game) {
         if ($game['group_id'] == $chat_id && $game['status'] == 'waiting') {
-            if (!isAdmin($user_id, $chat_id)) {
-                return ['success' => false, 'message' => '❌ فقط ادمین گروه می‌تواند تمدید کند!'];
-            }
             if ($game['extend_count'] >= 3) {
                 return ['success' => false, 'message' => '❌ حداکثر ۳ بار تمدید!'];
             }
@@ -352,12 +549,9 @@ function setGameTiming($chat_id, $user_id, $timing) {
     $games = loadGames();
     foreach ($games as $code => $game) {
         if ($game['group_id'] == $chat_id && $game['status'] == 'waiting') {
-            if (!isAdmin($user_id, $chat_id)) {
-                return ['success' => false, 'message' => '❌ فقط ادمین گروه می‌تواند تایم را تنظیم کند!'];
-            }
             $times = ['fast' => 60, 'normal' => 90, 'slow' => 120];
             if (!isset($times[$timing])) {
-                return ['success' => false, 'message' => '❌ گزینه نامعتبر! از /timing fast|normal|slow استفاده کنید.'];
+                return ['success' => false, 'message' => '❌ گزینه نامعتبر!'];
             }
             $game['day_duration'] = $times[$timing];
             $game['night_duration'] = $times[$timing];
@@ -370,23 +564,213 @@ function setGameTiming($chat_id, $user_id, $timing) {
     return ['success' => false, 'message' => '❌ بازی فعالی برای تنظیم تایم وجود ندارد!'];
 }
 
-function isAdmin($user_id, $chat_id) {
-    return true;
+function setGroupLink($chat_id, $user_id, $link) {
+    if (!preg_match('/^https?:\/\/[^\s]+$/', $link)) {
+        return ['success' => false, 'message' => '❌ لینک نامعتبر است!'];
+    }
+    $links = loadLinks();
+    $links[$chat_id] = ['link' => $link, 'set_by' => $user_id, 'set_at' => time()];
+    saveLinks($links);
+    return ['success' => true, 'message' => "✅ لینک گروه ذخیره شد:\n$link"];
+}
+
+function getGroupLink($chat_id) {
+    $links = loadLinks();
+    if (isset($links[$chat_id])) {
+        return ['success' => true, 'link' => $links[$chat_id]['link']];
+    }
+    return ['success' => false, 'message' => '❌ لینکی برای این گروه تنظیم نشده است!'];
+}
+
+function removeGroupLink($chat_id, $user_id) {
+    if (!isAdmin($user_id, $chat_id)) {
+        return ['success' => false, 'message' => '❌ فقط ادمین گروه می‌تواند لینک را حذف کند!'];
+    }
+    $links = loadLinks();
+    if (isset($links[$chat_id])) {
+        unset($links[$chat_id]);
+        saveLinks($links);
+        return ['success' => true, 'message' => '✅ لینک گروه حذف شد!'];
+    }
+    return ['success' => false, 'message' => '❌ لینکی برای این گروه وجود ندارد!'];
+}
+
+function getGameStats() {
+    $games = loadGames();
+    return [
+        'total' => count($games),
+        'waiting' => count(array_filter($games, fn($g) => $g['status'] == 'waiting')),
+        'started' => count(array_filter($games, fn($g) => $g['status'] == 'started')),
+        'ended' => count(array_filter($games, fn($g) => $g['status'] == 'ended'))
+    ];
+}
+
+function cleanupOldGames() {
+    $games = loadGames();
+    $now = time();
+    $changed = false;
+    foreach ($games as $code => $game) {
+        if ($game['status'] == 'waiting' && ($now - $game['created']) > 600) {
+            unset($games[$code]);
+            $changed = true;
+        }
+        if ($game['status'] == 'ended' && isset($game['ended']) && ($now - $game['ended']) > 86400) {
+            unset($games[$code]);
+            $changed = true;
+        }
+    }
+    if ($changed) {
+        saveGames($games);
+    }
+}
+
+function getDatabaseSize() {
+    global $data_path;
+    $file = $data_path . 'games.json';
+    if (!file_exists($file)) return '0 KB';
+    $size = filesize($file);
+    if ($size < 1024) return $size . ' B';
+    if ($size < 1024*1024) return round($size/1024, 2) . ' KB';
+    return round($size/(1024*1024), 2) . ' MB';
 }
 
 // ============================================================
-// فازهای بازی
+// سیستم نقش‌ها (ساده شده)
+// ============================================================
+
+function getRoleDisplayName($role) {
+    $names = [
+        'villager' => '👨‍🌾 روستایی ساده',
+        'seer' => '👳🏻‍♂️ پیشگو',
+        'werewolf' => '🐺 گرگینه',
+        'guardian_angel' => '👼🏻 فرشته نگهبان',
+        'hunter' => '👮🏻‍♂️ کلانتر',
+        'detective' => '🕵🏻‍♂️ کاراگاه',
+        'knight' => '🗡 شوالیه',
+        'harlot' => '💋 ناتاشا',
+        'builder' => '👷🏻‍♂️ بنا',
+        'blacksmith' => '⚒ آهنگر',
+        'gunner' => '🔫 تفنگدار',
+        'mayor' => '🎖 کدخدا',
+        'prince' => '🤴🏻 شاهزاده',
+        'cupid' => '💘 الهه عشق',
+        'beholder' => '👁 شاهد',
+        'phoenix' => '🪶 ققنوس',
+        'huntsman' => '🪓 هانتسمن',
+        'trouble' => '👩🏻‍🌾 دختر دردسرساز',
+        'chemist' => '👨‍🔬 شیمیدان',
+        'fool' => '🃏 احمق',
+        'clumsy' => '🤕 پسر گیج',
+        'cursed' => '😾 نفرین شده',
+        'traitor' => '🖕🏿 خائن',
+        'wild_child' => '👶🏻 بچه وحشی',
+        'wise_elder' => '📚 ریش سفید',
+        'sandman' => '💤 خوابگذار',
+        'sweetheart' => '👰🏻 دلبر',
+        'ruler' => '👑 حاکم',
+        'spy' => '🦹🏻‍♂️ جاسوس',
+        'marouf' => '🛡️🌿 معروف',
+        'cult_hunter' => '💂🏻‍♂️ شکارچی فرقه',
+        'hamal' => '🛒 حمال',
+        'jumong' => '🏹⚔️ جومونگ',
+        'princess' => '👸🏻 پرنسس',
+        'wolf_man' => '🌑👨🏻 گرگنما',
+        'drunk' => '🍻 مست',
+        'alpha_wolf' => '⚡️🐺 گرگ آلفا',
+        'wolf_cub' => '🐶 توله گرگ',
+        'lycan' => '🌝🐺 گرگ ایکس',
+        'forest_queen' => '🧝🏻‍♀️🐺 ملکه جنگل',
+        'white_wolf' => '🌩🐺 گرگ سفید',
+        'beta_wolf' => '💤🐺 گرگ خوابالو',
+        'ice_wolf' => '☃️🐺 گرگ برفی',
+        'enchanter' => '🧙🏻‍♂️ افسونگر',
+        'honey' => '🧙🏻‍♀️ عجوزه',
+        'sorcerer' => '🔮 جادوگر',
+        'vampire' => '🧛🏻‍♂️ ومپایر',
+        'bloodthirsty' => '🧛🏻‍♀️ ومپایر اصیل',
+        'kent_vampire' => '💍🧛🏻 کنت ومپایر',
+        'chiang' => '👩‍🦳 چیانگ',
+        'cultist' => '👤 فرقه‌گرا',
+        'royce' => '🎩 رئیس فرقه',
+        'frankenstein' => '🧟‍♂️🪖 فرانکشتاین',
+        'monk_black' => '🦇 راهب سیاه',
+        'serial_killer' => '🔪 قاتل زنجیره‌ای',
+        'archer' => '🏹 کماندار',
+        'davina' => '🍾 داوینا',
+        'fire_king' => '🔥🤴🏻 پادشاه آتش',
+        'ice_queen' => '❄️👸🏻 ملکه یخی',
+        'lilith' => '🐍👩🏻‍🦳 لیلیث',
+        'magento' => '🧲 مگنیتو',
+        'black_knight' => '🥷🗡 شوالیه تاریکی',
+        'bride_dead' => '👰‍♀☠️ عروس مردگان',
+        'joker' => '🤡 جوکر',
+        'harly' => '👩🏻‍🎤 هارلی کویین',
+        'dian' => '🧞‍♂️ دیان',
+        'dinamit' => '🧨 دینامیت',
+        'bomber' => '💣 بمب‌گذار',
+        'tso' => '⚔️ تسو',
+        'tanner' => '👺 منافق',
+        'lucifer' => '😈 لوسیفر',
+        'doppelganger' => '👯 همزاد'
+    ];
+    return $names[$role] ?? '❓ ' . $role;
+}
+
+function getRoleDescription($role) {
+    $desc = [
+        'villager' => '👨‍🌾 شما یک روستایی ساده هستید. در روز رأی می‌دهید.',
+        'seer' => '👳🏻‍♂️ شما پیشگو هستید! هر شب نقش یک نفر را می‌بینید.',
+        'werewolf' => '🐺 شما گرگینه هستید! هر شب یک نفر را می‌خورید.',
+        'guardian_angel' => '👼🏻 شما فرشته نگهبان هستید! هر شب از یک نفر محافظت می‌کنید.',
+        'hunter' => '👮🏻‍♂️ شما کلانتر هستید! اگر بمیرید، می‌توانید به یک نفر شلیک کنید.',
+        'detective' => '🕵🏻‍♂️ شما کاراگاه هستید! هر شب یک نفر را تحقیق می‌کنید.',
+        'knight' => '🗡 شما شوالیه هستید! هر شب می‌توانید از یک نفر محافظت کنید.'
+    ];
+    return $desc[$role] ?? '🎭 شما ' . getRoleDisplayName($role) . ' هستید!';
+}
+
+function getRules() {
+    return "📜 <b>قوانین بازی گرگینه</b>\n\n" .
+           "🌙 <b>شب:</b> گرگ‌ها یک نفر را می‌خورند، پیشگو نقش یک نفر را می‌بیند.\n" .
+           "☀️ <b>روز:</b> همه بحث می‌کنند و به یک نفر رأی می‌دهند.\n" .
+           "🏆 <b>برد:</b> گرگ‌ها باید همه روستایی‌ها را بخورند، روستایی‌ها باید همه گرگ‌ها را پیدا کنند.";
+}
+
+function getRolesList() {
+    return "🎭 <b>نقش‌های بازی</b>\n\n" .
+           "🐺 گرگینه - هر شب یک نفر را می‌خورد\n" .
+           "👳🏻‍♂️ پیشگو - هر شب نقش یک نفر را می‌بیند\n" .
+           "👨‍🌾 روستایی - در روز رأی می‌دهد\n" .
+           "👼🏻 فرشته نگهبان - هر شب از یک نفر محافظت می‌کند\n" .
+           "👮🏻‍♂️ کلانتر - اگر بمیرد، می‌تواند به یک نفر شلیک کند\n" .
+           "🕵🏻‍♂️ کاراگاه - هر شب یک نفر را تحقیق می‌کند\n" .
+           "🗡 شوالیه - هر شب از یک نفر محافظت می‌کند\n" .
+           "🔪 قاتل زنجیره‌ای - هر شب یک نفر را می‌کشد\n" .
+           "🧛🏻‍♂️ ومپایر - هر شب به یک نفر حمله می‌کند\n" .
+           "👤 فرقه‌گرا - هر شب یک نفر را به فرقه دعوت می‌کند\n" .
+           "🤡 جوکر - کتیبه‌ها را جمع می‌کند\n" .
+           "👺 منافق - باید اعدام شود تا برنده شود";
+}
+
+function getRoleActionDescription($role) {
+    $actions = [
+        'werewolf' => '🐺 یک نفر را برای خوردن انتخاب کن.',
+        'seer' => '👁️ یک نفر را برای دیدن نقش انتخاب کن.',
+        'guardian_angel' => '🛡️ یک نفر را برای محافظت انتخاب کن.',
+        'hunter' => '🔫 یک نفر را برای شلیک انتخاب کن.',
+        'detective' => '🔍 یک نفر را برای تحقیق انتخاب کن.',
+        'knight' => '🗡 یک نفر را برای محافظت انتخاب کن.'
+    ];
+    return $actions[$role] ?? '';
+}
+
+// ============================================================
+// فازهای بازی (ساده شده)
 // ============================================================
 
 function sendNightPanel($player, $game) {
     $role = $player['role'];
-    
-    $nightRoles = [
-        'werewolf', 'alpha_wolf', 'wolf_cub', 'lycan', 'forest_queen',
-        'white_wolf', 'beta_wolf', 'ice_wolf', 'enchanter', 'honey', 'sorcerer',
-        'seer', 'guardian_angel', 'knight', 'hunter', 'harlot',
-        'detective', 'cupid', 'phoenix', 'sandman', 'spy'
-    ];
+    $nightRoles = ['werewolf', 'seer', 'guardian_angel', 'hunter', 'detective', 'knight'];
     
     if (!in_array($role, $nightRoles)) {
         sendPrivateMessage($player['id'], "🌙 <b>شب " . $game['night_count'] . "</b>\n\n💤 تو می‌تونی بخوابی...");
@@ -399,12 +783,7 @@ function sendNightPanel($player, $game) {
     });
     
     foreach ($alivePlayers as $p) {
-        if (in_array($role, ['werewolf', 'alpha_wolf', 'wolf_cub', 'lycan', 'forest_queen',
-                             'white_wolf', 'beta_wolf', 'ice_wolf', 'enchanter', 'honey', 'sorcerer']) &&
-            in_array($p['role'], ['werewolf', 'alpha_wolf', 'wolf_cub', 'lycan', 'forest_queen',
-                                  'white_wolf', 'beta_wolf', 'ice_wolf', 'enchanter', 'honey', 'sorcerer'])) {
-            continue;
-        }
+        if ($role == 'werewolf' && $p['role'] == 'werewolf') continue;
         $targets[] = ['id' => $p['id'], 'name' => $p['name']];
     }
     
@@ -446,8 +825,7 @@ function processNight($game_code, $game) {
     }
     
     foreach ($game['night_actions'] as $action) {
-        if (in_array($action['role'], ['werewolf', 'alpha_wolf', 'wolf_cub', 'lycan', 'forest_queen',
-                                        'white_wolf', 'beta_wolf', 'ice_wolf', 'enchanter', 'honey', 'sorcerer'])) {
+        if ($action['role'] == 'werewolf') {
             $target = $action['target'];
             if (!in_array($target, $protected)) {
                 foreach ($game['players'] as &$p) {
@@ -478,7 +856,7 @@ function processNight($game_code, $game) {
     $game['votes'] = [];
     $game['night_actions'] = [];
     $game['night_end_time'] = 0;
-    $game['day_end_time'] = time() + ($game['day_duration'] ?? 60);
+    $game['day_end_time'] = time() + $game['day_duration'];
     $game['vote_end_time'] = 0;
     
     $games = loadGames();
@@ -492,7 +870,7 @@ function processNight($game_code, $game) {
         $msg .= "✨ <b>امشب کسی نمرد!</b>\n\n";
     }
     
-    $msg .= "🗣️ <b>زمان بحث!</b>\n⏱ " . ($game['day_duration'] ?? 60) . " ثانیه وقت دارید.\nبعدش رأی‌گیری شروع می‌شه.";
+    $msg .= "🗣️ <b>زمان بحث!</b>\n⏱ {$game['day_duration']} ثانیه وقت دارید.\nبعدش رأی‌گیری شروع می‌شه.";
     sendMessage($game['group_id'], $msg);
 }
 
@@ -505,7 +883,7 @@ function startVoting($game) {
     
     $game['phase'] = 'vote';
     $game['votes'] = [];
-    $game['vote_end_time'] = time() + ($game['vote_duration'] ?? 60);
+    $game['vote_end_time'] = time() + $game['vote_duration'];
     
     $games = loadGames();
     foreach ($games as $code => $g) {
@@ -516,7 +894,7 @@ function startVoting($game) {
     }
     saveGames($games);
     
-    sendMessage($game['group_id'], "🗳️ <b>زمان رأی‌گیری!</b>\n⏱ " . ($game['vote_duration'] ?? 60) . " ثانیه وقت دارید.\nبه صورت خصوصی به ربات پیام دهید.");
+    sendMessage($game['group_id'], "🗳️ <b>زمان رأی‌گیری!</b>\n⏱ {$game['vote_duration']} ثانیه وقت دارید.\nبه صورت خصوصی به ربات پیام دهید.");
     
     foreach ($alivePlayers as $p) {
         sendVotePanel($p, $game);
@@ -595,12 +973,8 @@ function checkWinCondition($game_code) {
     if (!$game) return;
     
     $alive = array_filter($game['players'], fn($p) => $p['alive'] ?? false);
-    $wolves = array_filter($alive, fn($p) => in_array($p['role'], ['werewolf', 'alpha_wolf', 'wolf_cub', 'lycan', 
-                                                                    'forest_queen', 'white_wolf', 'beta_wolf', 
-                                                                    'ice_wolf', 'enchanter', 'honey', 'sorcerer']));
-    $villagers = array_filter($alive, fn($p) => !in_array($p['role'], ['werewolf', 'alpha_wolf', 'wolf_cub', 'lycan', 
-                                                                        'forest_queen', 'white_wolf', 'beta_wolf', 
-                                                                        'ice_wolf', 'enchanter', 'honey', 'sorcerer']));
+    $wolves = array_filter($alive, fn($p) => $p['role'] == 'werewolf');
+    $villagers = array_filter($alive, fn($p) => $p['role'] != 'werewolf');
     
     if (count($wolves) == 0) {
         sendMessage($game['group_id'], "🎉 <b>روستایی‌ها برنده شدند!</b>");
@@ -621,7 +995,7 @@ function checkWinCondition($game_code) {
     $game['phase'] = 'night';
     $game['night_count'] = ($game['night_count'] ?? 0) + 1;
     $game['night_actions'] = [];
-    $game['night_end_time'] = time() + ($game['night_duration'] ?? 60);
+    $game['night_end_time'] = time() + $game['night_duration'];
     $games[$game_code] = $game;
     saveGames($games);
     
@@ -647,192 +1021,127 @@ function endGame($game) {
     sendMessage($game['group_id'], "🏁 <b>بازی تمام شد!</b>");
 }
 
-function cleanupOldGames() {
+function startGame($group_id, $user_id) {
     $games = loadGames();
-    $now = time();
-    $changed = false;
-    foreach ($games as $code => $game) {
-        if ($game['status'] == 'waiting' && ($now - $game['created']) > 600) {
-            unset($games[$code]);
-            $changed = true;
-        }
-        if ($game['status'] == 'ended' && isset($game['ended']) && ($now - $game['ended']) > 86400) {
-            unset($games[$code]);
-            $changed = true;
+    $game = null;
+    $game_code = null;
+    foreach ($games as $code => $g) {
+        if ($g['group_id'] == $group_id && $g['status'] == 'waiting') {
+            $game = $g;
+            $game_code = $code;
+            break;
         }
     }
-    if ($changed) {
-        saveGames($games);
+    if (!$game) {
+        return ['success' => false, 'message' => '❌ بازی فعالی برای شروع وجود ندارد!'];
     }
-}
-
-function getDatabaseSize() {
-    $file = DATA_PATH . 'games.json';
-    if (!file_exists($file)) return '0 KB';
-    $size = filesize($file);
-    if ($size < 1024) return $size . ' B';
-    if ($size < 1024*1024) return round($size/1024, 2) . ' KB';
-    return round($size/(1024*1024), 2) . ' MB';
+    if (count($game['players']) < 4) {
+        return ['success' => false, 'message' => '❌ حداقل ۴ نفر نیاز است! (' . count($game['players']) . '/4)'];
+    }
+    
+    $roles = ['villager', 'villager', 'werewolf', 'seer'];
+    while (count($roles) < count($game['players'])) {
+        $roles[] = 'villager';
+    }
+    shuffle($roles);
+    
+    foreach ($game['players'] as $i => &$p) {
+        $p['role'] = $roles[$i];
+    }
+    
+    $game['status'] = 'started';
+    $game['phase'] = 'night';
+    $game['night_count'] = 1;
+    $game['night_actions'] = [];
+    $game['votes'] = [];
+    $game['night_end_time'] = time() + $game['night_duration'];
+    $games[$game_code] = $game;
+    saveGames($games);
+    
+    foreach ($game['players'] as $p) {
+        sendPrivateMessage($p['id'], "🎭 <b>نقش شما: " . getRoleDisplayName($p['role']) . "</b>\n\n" .
+            getRoleDescription($p['role']) . "\n\n🌙 شب اول شروع شد...");
+        sendNightPanel($p, $game);
+    }
+    
+    sendMessage($group_id, "🌙 <b>شب " . $game['night_count'] . "!</b>\n\nهمه بخوابید...\n⏱ {$game['night_duration']} ثانیه تا صبح");
+    
+    return ['success' => true, 'message' => "🎮 <b>بازی شروع شد!</b>\n\n👥 " . count($game['players']) . " نفر\n🌙 شب اول..."];
 }
 
 // ============================================================
-// توابع نقش‌ها
+// سیستم چت تیمی و مدیریت پیام‌ها
 // ============================================================
 
-function getRoleDisplayName($role) {
-    $names = [
-        'villager' => '👨‍🌾 روستایی ساده',
-        'seer' => '👳🏻‍♂️ پیشگو',
-        'apprentice_seer' => '🙇🏻‍♂️ شاگرد پیشگو',
-        'guardian_angel' => '👼🏻 فرشته نگهبان',
-        'knight' => '🗡 شوالیه',
-        'hunter' => '👮🏻‍♂️ کلانتر',
-        'harlot' => '💋 ناتاشا',
-        'builder' => '👷🏻‍♂️ بنا',
-        'blacksmith' => '⚒ آهنگر',
-        'gunner' => '🔫 تفنگدار',
-        'mayor' => '🎖 کدخدا',
-        'prince' => '🤴🏻 شاهزاده',
-        'detective' => '🕵🏻‍♂️ کاراگاه',
-        'cupid' => '💘 الهه عشق',
-        'beholder' => '👁 شاهد',
-        'phoenix' => '🪶 ققنوس',
-        'huntsman' => '🪓 هانتسمن',
-        'trouble' => '👩🏻‍🌾 دختر دردسرساز',
-        'chemist' => '👨‍🔬 شیمیدان',
-        'fool' => '🃏 احمق',
-        'clumsy' => '🤕 پسر گیج',
-        'cursed' => '😾 نفرین شده',
-        'traitor' => '🖕🏿 خائن',
-        'wild_child' => '👶🏻 بچه وحشی',
-        'wise_elder' => '📚 ریش سفید',
-        'sandman' => '💤 خوابگذار',
-        'sweetheart' => '👰🏻 دلبر',
-        'ruler' => '👑 حاکم',
-        'spy' => '🦹🏻‍♂️ جاسوس',
-        'marouf' => '🛡️🌿 معروف',
-        'cult_hunter' => '💂🏻‍♂️ شکارچی فرقه',
-        'hamal' => '🛒 حمال',
-        'jumong' => '🏹⚔️ جومونگ',
-        'princess' => '👸🏻 پرنسس',
-        'wolf_man' => '🌑👨🏻 گرگنما',
-        'drunk' => '🍻 مست',
-        'werewolf' => '🐺 گرگینه',
-        'alpha_wolf' => '⚡️🐺 گرگ آلفا',
-        'wolf_cub' => '🐶 توله گرگ',
-        'lycan' => '🌝🐺 گرگ ایکس',
-        'forest_queen' => '🧝🏻‍♀️🐺 ملکه جنگل',
-        'white_wolf' => '🌩🐺 گرگ سفید',
-        'beta_wolf' => '💤🐺 گرگ خوابالو',
-        'ice_wolf' => '☃️🐺 گرگ برفی',
-        'enchanter' => '🧙🏻‍♂️ افسونگر',
-        'honey' => '🧙🏻‍♀️ عجوزه',
-        'sorcerer' => '🔮 جادوگر',
-        'vampire' => '🧛🏻‍♂️ ومپایر',
-        'bloodthirsty' => '🧛🏻‍♀️ ومپایر اصیل',
-        'kent_vampire' => '💍🧛🏻 کنت ومپایر',
-        'chiang' => '👩‍🦳 چیانگ',
-        'cultist' => '👤 فرقه‌گرا',
-        'royce' => '🎩 رئیس فرقه',
-        'frankenstein' => '🧟‍♂️🪖 فرانکشتاین',
-        'monk_black' => '🦇 راهب سیاه',
-        'serial_killer' => '🔪 قاتل زنجیره‌ای',
-        'archer' => '🏹 کماندار',
-        'davina' => '🍾 داوینا',
-        'fire_king' => '🔥🤴🏻 پادشاه آتش',
-        'ice_queen' => '❄️👸🏻 ملکه یخی',
-        'lilith' => '🐍👩🏻‍🦳 لیلیث',
-        'magento' => '🧲 مگنیتو',
-        'black_knight' => '🥷🗡 شوالیه تاریکی',
-        'bride_dead' => '👰‍♀☠️ عروس مردگان',
-        'joker' => '🤡 جوکر',
-        'harly' => '👩🏻‍🎤 هارلی کویین',
-        'dian' => '🧞‍♂️ دیان',
-        'dinamit' => '🧨 دینامیت',
-        'bomber' => '💣 بمب‌گذار',
-        'tso' => '⚔️ تسو',
-        'tanner' => '👺 منافق',
-        'lucifer' => '😈 لوسیفر',
-        'doppelganger' => '👯 همزاد'
-    ];
-    return $names[$role] ?? '❓ ' . $role;
-}
-
-function getRoleDescription($role) {
-    $desc = [
-        'villager' => '👨‍🌾 شما یک روستایی ساده هستید. در روز رأی می‌دهید.',
-        'seer' => '👳🏻‍♂️ شما پیشگو هستید! هر شب نقش یک نفر را می‌بینید.',
-        'werewolf' => '🐺 شما گرگینه هستید! هر شب یک نفر را می‌خورید.',
-        'guardian_angel' => '👼🏻 شما فرشته نگهبان هستید! هر شب از یک نفر محافظت می‌کنید.',
-        'hunter' => '👮🏻‍♂️ شما کلانتر هستید! اگر بمیرید، می‌توانید به یک نفر شلیک کنید.',
-        'detective' => '🕵🏻‍♂️ شما کاراگاه هستید! هر شب یک نفر را تحقیق می‌کنید.',
-        'knight' => '🗡 شما شوالیه هستید! هر شب می‌توانید از یک نفر محافظت کنید.'
-    ];
-    return $desc[$role] ?? '🎭 شما ' . getRoleDisplayName($role) . ' هستید!';
-}
-
-function getRoleActionDescription($role) {
-    $actions = [
-        'werewolf' => '🐺 یک نفر را برای خوردن انتخاب کن.',
-        'seer' => '👁️ یک نفر را برای دیدن نقش انتخاب کن.',
-        'guardian_angel' => '🛡️ یک نفر را برای محافظت انتخاب کن.',
-        'hunter' => '🔫 یک نفر را برای شلیک انتخاب کن.',
-        'detective' => '🔍 یک نفر را برای تحقیق انتخاب کن.',
-        'knight' => '🗡 یک نفر را برای محافظت انتخاب کن.'
-    ];
-    return $actions[$role] ?? '';
-}
-
-function getRules() {
-    return "📜 <b>قوانین بازی گرگینه</b>\n\n" .
-           "🌙 <b>شب:</b> گرگ‌ها یک نفر را می‌خورند، پیشگو نقش یک نفر را می‌بیند.\n" .
-           "☀️ <b>روز:</b> همه بحث می‌کنند و به یک نفر رأی می‌دهند.\n" .
-           "🏆 <b>برد:</b> گرگ‌ها باید همه روستایی‌ها را بخورند، روستایی‌ها باید همه گرگ‌ها را پیدا کنند.";
-}
-
-function getRolesList() {
-    return "🎭 <b>نقش‌های بازی</b>\n\n" .
-           "🐺 گرگینه - هر شب یک نفر را می‌خورد\n" .
-           "👳🏻‍♂️ پیشگو - هر شب نقش یک نفر را می‌بیند\n" .
-           "👨‍🌾 روستایی - در روز رأی می‌دهد\n" .
-           "👼🏻 فرشته نگهبان - هر شب از یک نفر محافظت می‌کند\n" .
-           "👮🏻‍♂️ کلانتر - اگر بمیرد، می‌تواند به یک نفر شلیک کند\n" .
-           "🕵🏻‍♂️ کاراگاه - هر شب یک نفر را تحقیق می‌کند\n" .
-           "🗡 شوالیه - هر شب از یک نفر محافظت می‌کند";
-}
-
-function getGameStats() {
-    $games = loadGames();
-    $total = count($games);
-    $waiting = count(array_filter($games, fn($g) => $g['status'] == 'waiting'));
-    $started = count(array_filter($games, fn($g) => $g['status'] == 'started'));
-    $ended = count(array_filter($games, fn($g) => $g['status'] == 'ended'));
-    return ['total' => $total, 'waiting' => $waiting, 'started' => $started, 'ended' => $ended];
-}
-
-// ============================================================
-// توابع لینک گروه
-// ============================================================
-
-function setGroupLink($chat_id, $user_id, $link) {
-    if (!isAdmin($user_id, $chat_id)) {
-        return ['success' => false, 'message' => '❌ فقط ادمین گروه می‌تواند لینک را تنظیم کند!'];
+function handleTeamChatMessage($user_id, $message, $game_code) {
+    $game = getGame($game_code);
+    if (!$game) return ['success' => false, 'message' => '❌ بازی پیدا نشد!'];
+    if ($game['phase'] != 'night') return ['success' => false, 'message' => '❌ فقط در شب می‌توانید چت کنید!'];
+    
+    $player = null;
+    foreach ($game['players'] as $p) {
+        if ($p['id'] == $user_id) {
+            $player = $p;
+            break;
+        }
     }
-    if (!preg_match('/^https?:\/\/[^\s]+$/', $link)) {
-        return ['success' => false, 'message' => '❌ لینک نامعتبر است!'];
+    if (!$player) return ['success' => false, 'message' => '❌ شما در این بازی نیستید!'];
+    if (!($player['alive'] ?? false)) return ['success' => false, 'message' => '💀 شما مرده‌اید!'];
+    
+    $team = detectTeam($player['role']);
+    $team_mates = [];
+    foreach ($game['players'] as $p) {
+        if ($p['id'] == $user_id) continue;
+        if (!($p['alive'] ?? false)) continue;
+        if (detectTeam($p['role']) == $team) {
+            $team_mates[] = $p;
+        }
     }
-    $links = loadLinks();
-    $links[$chat_id] = ['link' => $link, 'set_by' => $user_id, 'set_at' => time()];
-    saveLinks($links);
-    return ['success' => true, 'message' => "✅ لینک گروه ذخیره شد:\n$link"];
+    if (empty($team_mates)) return ['success' => false, 'message' => '❌ هم‌تیمی فعالی ندارید!'];
+    
+    foreach ($team_mates as $mate) {
+        sendPrivateMessage($mate['id'], "💬 <b>پیام از " . $player['name'] . ":</b>\n" . $message);
+    }
+    
+    return ['success' => true, 'message' => "✅ پیام به " . count($team_mates) . " هم‌تیمی ارسال شد!"];
 }
 
-function getGroupLink($chat_id) {
-    $links = loadLinks();
-    if (isset($links[$chat_id])) {
-        return ['success' => true, 'link' => $links[$chat_id]['link']];
+function detectTeam($role) {
+    $wolf_roles = ['werewolf', 'alpha_wolf', 'wolf_cub', 'lycan', 'forest_queen', 
+                   'white_wolf', 'beta_wolf', 'ice_wolf', 'enchanter', 'honey', 'sorcerer'];
+    if (in_array($role, $wolf_roles)) return 'werewolf';
+    
+    $vampire_roles = ['vampire', 'bloodthirsty', 'kent_vampire', 'chiang'];
+    if (in_array($role, $vampire_roles)) return 'vampire';
+    
+    $cult_roles = ['cultist', 'royce', 'frankenstein', 'monk_black'];
+    if (in_array($role, $cult_roles)) return 'cult';
+    
+    $killer_roles = ['serial_killer', 'archer', 'davina'];
+    if (in_array($role, $killer_roles)) return 'killer';
+    
+    return 'villager';
+}
+
+function hasEmoji($text) {
+    $emoji_pattern = '/[\x{1F600}-\x{1F64F}\x{1F300}-\x{1F5FF}\x{1F680}-\x{1F6FF}\x{2600}-\x{26FF}\x{2700}-\x{27BF}]/u';
+    return preg_match($emoji_pattern, $text);
+}
+
+function handleEmojiMessage($user_id, $message) {
+    if (hasEmoji($message)) {
+        if (strpos($message, '🐺') !== false) {
+            return "🐺 شما نقش گرگینه را انتخاب کردید!";
+        }
+        if (strpos($message, '👳') !== false) {
+            return "👳 شما نقش پیشگو را انتخاب کردید!";
+        }
+        if (strpos($message, '👼') !== false) {
+            return "👼 شما نقش فرشته نگهبان را انتخاب کردید!";
+        }
+        return "😊 ایموجی شما دریافت شد!";
     }
-    return ['success' => false, 'message' => '❌ لینکی برای این گروه تنظیم نشده است!'];
+    return null;
 }
 
 // ============================================================
@@ -926,10 +1235,7 @@ if (isset($update['callback_query'])) {
         $role = $parts[0];
         $target_id = $parts[1] == 'skip' ? 'skip' : (int)$parts[1];
         
-        $nightRoles = ['werewolf', 'alpha_wolf', 'wolf_cub', 'lycan', 'forest_queen',
-                       'white_wolf', 'beta_wolf', 'ice_wolf', 'enchanter', 'honey', 'sorcerer',
-                       'seer', 'guardian_angel', 'knight', 'hunter', 'harlot',
-                       'detective', 'cupid', 'phoenix', 'sandman', 'spy'];
+        $nightRoles = ['werewolf', 'seer', 'guardian_angel', 'hunter', 'detective', 'knight'];
         
         if (in_array($role, $nightRoles)) {
             $games = loadGames();
@@ -1010,7 +1316,7 @@ if (isset($update['callback_query'])) {
         case 'join_menu': $response = "🔗 کد بازی را وارد کنید:\nمثال: /join AB12CD"; break;
         case 'rules': $response = getRules(); break;
         case 'roles': $response = getRolesList(); break;
-        case 'help': $response = "📚 راهنما:\n/start - منو\n/game - ساخت بازی\n/join [کد] - پیوستن\n/players - لیست بازیکنان\n/startgame - شروع بازی\n/stop - لغو بازی\n/leave - خروج\n/extend - تمدید زمان\n/timing - تنظیم تایم\n/ping - تست"; break;
+        case 'help': $response = "📚 راهنما:\n/start - منو\n/game - ساخت بازی\n/join [کد] - پیوستن\n/players - لیست بازیکنان\n/startgame - شروع بازی\n/stop - لغو بازی\n/leave - خروج\n/extend - تمدید زمان\n/timing - تنظیم تایم\n/setlink - تنظیم لینک\n/removelink - حذف لینک\n/coin - سکه\n/shop - فروشگاه\n/report - گزارش\n/score - امتیاز\n/stats - آمار\n/ping - تست"; break;
         case 'stats':
             $stats = getGameStats();
             $response = "📊 <b>آمار ربات</b>\n\n" .
@@ -1066,7 +1372,12 @@ foreach ($games as $code => $game) {
     }
 }
 
+// ============================================================
+// پردازش دستورات
+// ============================================================
+
 switch ($command) {
+    // ===== دستورات اصلی =====
     case '/start':
         $msg = "👋 سلام <b>$first_name</b>!\n🐺 ربات گرگینه فعاله!\n\n📱 یکی رو انتخاب کن:";
         $keyboard = [
@@ -1141,8 +1452,14 @@ switch ($command) {
                "/leave - خروج از بازی\n" .
                "/extend - تمدید زمان انتظار (ادمین)\n" .
                "/timing [fast|normal|slow] - تنظیم تایم (ادمین)\n" .
-               "/rules - قوانین بازی\n" .
-               "/roles - لیست نقش‌ها\n" .
+               "/setlink [لینک] - تنظیم لینک گروه (ادمین)\n" .
+               "/removelink - حذف لینک گروه (ادمین)\n" .
+               "/coin - مشاهده سکه\n" .
+               "/sendcoin [کاربر] [مقدار] - ارسال سکه\n" .
+               "/shop - فروشگاه\n" .
+               "/buy [آیتم] - خرید آیتم\n" .
+               "/report [کاربر] [دلیل] - گزارش کاربر\n" .
+               "/score - مشاهده امتیاز\n" .
                "/stats - آمار ربات\n" .
                "/ping - تست اتصال";
         sendMessage($chat_id, $msg);
@@ -1193,25 +1510,6 @@ switch ($command) {
         }
         break;
         
-    case '/kill':
-        // خروج اجباری (فقط ادمین)
-        if ($user_id != ADMIN_ID) {
-            sendMessage($chat_id, "❌ فقط ادمین اصلی می‌تواند از این دستور استفاده کند!");
-        } else {
-            // پیاده‌سازی kill
-            sendMessage($chat_id, "⚡️ دستور kill - هنوز پیاده‌سازی نشده");
-        }
-        break;
-        
-    case '/smite':
-        // حذف بازیکن (فقط ادمین)
-        if ($user_id != ADMIN_ID) {
-            sendMessage($chat_id, "❌ فقط ادمین اصلی می‌تواند از این دستور استفاده کند!");
-        } else {
-            sendMessage($chat_id, "⚡️ دستور smite - هنوز پیاده‌سازی نشده");
-        }
-        break;
-        
     case '/setlink':
         if (empty($param)) {
             $result = getGroupLink($chat_id);
@@ -1226,8 +1524,170 @@ switch ($command) {
         }
         break;
         
-    case '/sponsers':
-        sendMessage($chat_id, "🤝 <b>اسپانسرها</b>\n\nاز حمایت شما متشکریم!");
+    case '/removelink':
+        $result = removeGroupLink($chat_id, $user_id);
+        sendMessage($chat_id, $result['message']);
+        break;
+        
+    // ===== سیستم سکه =====
+    case '/coin':
+        $coins = getCoin($user_id);
+        sendMessage($chat_id, "🪙 <b>سکه شما:</b> $coins");
+        break;
+        
+    case '/sendcoin':
+        $parts = explode(' ', $text);
+        if (count($parts) < 3) {
+            sendMessage($chat_id, "❌ استفاده صحیح:\n/sendcoin [آیدی کاربر] [مقدار]");
+        } else {
+            $target_id = (int)$parts[1];
+            $amount = (int)$parts[2];
+            if ($amount <= 0) {
+                sendMessage($chat_id, "❌ مقدار باید بیشتر از صفر باشد!");
+            } else {
+                if (sendCoin($user_id, $target_id, $amount)) {
+                    sendMessage($chat_id, "✅ $amount سکه به کاربر ارسال شد!");
+                } else {
+                    sendMessage($chat_id, "❌ سکه کافی نیست!");
+                }
+            }
+        }
+        break;
+        
+    case '/shop':
+        $items = getShopItems();
+        $msg = "🛍️ <b>فروشگاه</b>\n\n";
+        foreach ($items as $item) {
+            $price_text = $item['price'] == 0 ? 'رایگان' : $item['price'] . ' سکه';
+            $msg .= "{$item['name']} - $price_text\n";
+            $msg .= "/buy {$item['id']}\n\n";
+        }
+        sendMessage($chat_id, $msg);
+        break;
+        
+    case '/buy':
+        if (empty($param)) {
+            sendMessage($chat_id, "❌ آیتم را وارد کنید!\nاز /shop برای مشاهده آیتم‌ها استفاده کنید.");
+        } else {
+            $result = buyItem($user_id, $param);
+            sendMessage($chat_id, $result['message']);
+        }
+        break;
+        
+    // ===== سیستم گزارش =====
+    case '/report':
+        $parts = explode(' ', $text);
+        if (count($parts) < 3) {
+            sendMessage($chat_id, "❌ استفاده صحیح:\n/report [آیدی کاربر] [دلیل]");
+        } else {
+            $target_id = (int)$parts[1];
+            $reason = implode(' ', array_slice($parts, 2));
+            addReport($user_id, $target_id, $reason);
+            sendMessage($chat_id, "✅ گزارش شما ثبت شد! ادمین بررسی خواهد کرد.");
+        }
+        break;
+        
+    // ===== سیستم امتیاز =====
+    case '/score':
+        $score = getScore($user_id);
+        sendMessage($chat_id, "📊 <b>امتیاز شما:</b> $score");
+        break;
+        
+    // ===== حالت‌های مختلف بازی =====
+    case '/startvampire':
+        $result = startGameWithMode($chat_id, $user_id, 'vampire');
+        sendMessage($chat_id, $result['message']);
+        break;
+        
+    case '/startwerewolf':
+        $result = startGameWithMode($chat_id, $user_id, 'werewolf');
+        sendMessage($chat_id, $result['message']);
+        break;
+        
+    case '/startbomber':
+        $result = startGameWithMode($chat_id, $user_id, 'bomber');
+        sendMessage($chat_id, $result['message']);
+        break;
+        
+    case '/starteasy':
+        $result = startGameWithMode($chat_id, $user_id, 'easy');
+        sendMessage($chat_id, $result['message']);
+        break;
+        
+    case '/startfoolish':
+        $result = startGameWithMode($chat_id, $user_id, 'foolish');
+        sendMessage($chat_id, $result['message']);
+        break;
+        
+    case '/startmafia':
+        $result = startGameWithMode($chat_id, $user_id, 'mafia');
+        sendMessage($chat_id, $result['message']);
+        break;
+        
+    case '/startmighty':
+        $result = startGameWithMode($chat_id, $user_id, 'mighty');
+        sendMessage($chat_id, $result['message']);
+        break;
+        
+    case '/startromantic':
+        $result = startGameWithMode($chat_id, $user_id, 'romantic');
+        sendMessage($chat_id, $result['message']);
+        break;
+        
+    case '/startcoin':
+        $result = startGameWithMode($chat_id, $user_id, 'coin');
+        sendMessage($chat_id, $result['message']);
+        break;
+        
+    // ===== سایر دستورات =====
+    case '/setmode':
+        $modes = array_keys(getGameModes());
+        if (empty($param) || !in_array($param, $modes)) {
+            sendMessage($chat_id, "❌ حالت نامعتبر!\nحالت‌های موجود: " . implode(', ', $modes));
+        } else {
+            setGroupSetting($chat_id, 'game_mode', $param);
+            sendMessage($chat_id, "✅ حالت بازی به <b>$param</b> تغییر کرد!");
+        }
+        break;
+        
+    case '/setlang':
+        if ($param != 'fa' && $param != 'en') {
+            sendMessage($chat_id, "❌ زبان نامعتبر!\nگزینه‌ها: fa, en");
+        } else {
+            setGroupSetting($chat_id, 'lang', $param);
+            sendMessage($chat_id, "✅ زبان به <b>$param</b> تغییر کرد!");
+        }
+        break;
+        
+    case '/setnight':
+        if (!is_numeric($param) || $param < 10) {
+            sendMessage($chat_id, "❌ زمان باید عددی بیشتر از ۱۰ باشد!");
+        } else {
+            setGroupSetting($chat_id, 'night_time', (int)$param);
+            sendMessage($chat_id, "✅ زمان شب به <b>$param</b> ثانیه تغییر کرد!");
+        }
+        break;
+        
+    case '/setday':
+        if (!is_numeric($param) || $param < 10) {
+            sendMessage($chat_id, "❌ زمان باید عددی بیشتر از ۱۰ باشد!");
+        } else {
+            setGroupSetting($chat_id, 'day_time', (int)$param);
+            sendMessage($chat_id, "✅ زمان روز به <b>$param</b> ثانیه تغییر کرد!");
+        }
+        break;
+        
+    case '/setvote':
+        if (!is_numeric($param) || $param < 10) {
+            sendMessage($chat_id, "❌ زمان باید عددی بیشتر از ۱۰ باشد!");
+        } else {
+            setGroupSetting($chat_id, 'vote_time', (int)$param);
+            sendMessage($chat_id, "✅ زمان رأی به <b>$param</b> ثانیه تغییر کرد!");
+        }
+        break;
+        
+    case '/ping':
+        sendMessage($chat_id, "🏓 Pong! زمان: " . date('H:i:s'));
         break;
         
     case '/info':
@@ -1249,10 +1709,6 @@ switch ($command) {
         }
         break;
         
-    case '/ping':
-        sendMessage($chat_id, "🏓 Pong! زمان: " . date('H:i:s'));
-        break;
-        
     default:
         sendMessage($chat_id, "❌ دستور نامشخص!\nبرای راهنما /help را بزنید.");
         break;
@@ -1261,3 +1717,4 @@ switch ($command) {
 http_response_code(200);
 echo '{"ok":true}';
 file_put_contents(__DIR__ . '/bot.log', date('Y-m-d H:i:s') . " - END\n", FILE_APPEND);
+?>
