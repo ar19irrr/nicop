@@ -528,14 +528,22 @@ function getGameInfo($group_id) {
 function getGroupActiveGame($group_id) {
     $games = loadGames();
     
-    // برای دیباگ: لاگ کردن
-    file_put_contents(__DIR__ . '/bot.log', date('Y-m-d H:i:s') . " - getGroupActiveGame for group: " . $group_id . "\n", FILE_APPEND);
+    // لاگ برای دیباگ
+    file_put_contents(__DIR__ . '/bot.log', date('Y-m-d H:i:s') . " - Checking group: " . $group_id . "\n", FILE_APPEND);
+    file_put_contents(__DIR__ . '/bot.log', date('Y-m-d H:i:s') . " - Games: " . json_encode($games) . "\n", FILE_APPEND);
     
-    foreach ($games as $game) {
-        if (isset($game['group_id']) && $game['group_id'] == $group_id && in_array($game['status'], ['waiting', 'started'])) {
+    foreach ($games as $code => $game) {
+        // اگه group_id وجود نداشت یا خالی بود، رد کن
+        if (!isset($game['group_id']) || empty($game['group_id'])) {
+            continue;
+        }
+        
+        // اگه group_id برابر بود و status درست بود، برگردون
+        if ($game['group_id'] == $group_id && in_array($game['status'], ['waiting', 'started'])) {
             return $game;
         }
     }
+    
     return null;
 }
 
