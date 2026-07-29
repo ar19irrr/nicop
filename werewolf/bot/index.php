@@ -1,5 +1,5 @@
 <?php
-// index.php - نسخه نهایی با لاگ‌گیری
+// index.php - نسخه خطایابی کامل
 
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
@@ -28,32 +28,34 @@ if (!$update) {
 
 logMessage("JSON decoded");
 
-// ===== لود کردن فایل‌ها =====
-try {
-    require_once __DIR__ . '/config.php';
-    require_once __DIR__ . '/functions.php';
-    require_once __DIR__ . '/database.php';
-    require_once __DIR__ . '/game.php';
-    require_once __DIR__ . '/commands.php';
-    logMessage("All files loaded");
-} catch (Exception $e) {
-    logMessage("ERROR loading files: " . $e->getMessage());
-    http_response_code(500);
-    echo '{"ok":false}';
-    exit;
-}
+// ===== تست بارگذاری فایل‌ها =====
+logMessage("Loading config.php...");
+require_once __DIR__ . '/config.php';
+logMessage("config.php loaded");
+
+logMessage("Loading functions.php...");
+require_once __DIR__ . '/functions.php';
+logMessage("functions.php loaded");
+
+logMessage("Loading database.php...");
+require_once __DIR__ . '/database.php';
+logMessage("database.php loaded");
+
+logMessage("Loading game.php...");
+require_once __DIR__ . '/game.php';
+logMessage("game.php loaded");
+
+logMessage("Loading commands.php...");
+require_once __DIR__ . '/commands.php';
+logMessage("commands.php loaded");
 
 // ===== پردازش =====
 if (function_exists('processUpdate')) {
-    logMessage("Calling processUpdate");
-    try {
-        processUpdate($update);
-        logMessage("processUpdate done");
-    } catch (Exception $e) {
-        logMessage("processUpdate ERROR: " . $e->getMessage() . "\n" . $e->getTraceAsString());
-    }
+    logMessage("processUpdate exists, calling it...");
+    processUpdate($update);
+    logMessage("processUpdate done");
 } else {
-    logMessage("processUpdate NOT FOUND");
+    logMessage("ERROR: processUpdate NOT FOUND!");
 }
 
 http_response_code(200);
