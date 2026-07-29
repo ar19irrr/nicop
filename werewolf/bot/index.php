@@ -439,8 +439,6 @@ function generateGameCode() {
 function createGame($group_id, $creator_id, $creator_name) {
     $games = loadGames();
     
-    file_put_contents(__DIR__ . '/bot.log', date('Y-m-d H:i:s') . " - createGame called for group: " . $group_id . "\n", FILE_APPEND);
-    
     foreach ($games as $game) {
         if (isset($game['group_id']) && $game['group_id'] == $group_id && in_array($game['status'], ['waiting', 'started'])) {
             return ['success' => false, 'message' => '⏳ یک بازی فعال در این گروه وجود دارد!'];
@@ -448,11 +446,6 @@ function createGame($group_id, $creator_id, $creator_name) {
     }
     
     $code = generateGameCode();
-    
-    // قبل از ذخیره، چک کن که group_id درست باشه
-    if (empty($group_id)) {
-        return ['success' => false, 'message' => '❌ خطا: group_id نامعتبر!'];
-    }
     
     $games[$code] = [
         'code' => $code,
@@ -482,9 +475,6 @@ function createGame($group_id, $creator_id, $creator_name) {
     
     saveGames($games);
     
-    // لاگ برای دیباگ
-    file_put_contents(__DIR__ . '/bot.log', date('Y-m-d H:i:s') . " - Game created: $code for group: $group_id\n", FILE_APPEND);
-    
     $remaining = $game['wait_until'] - time();
     $minutes = floor($remaining / 60);
     $seconds = $remaining % 60;
@@ -498,11 +488,13 @@ function createGame($group_id, $creator_id, $creator_name) {
     $msg .= "🔗 لینک دعوت: https://t.me/" . BOT_USERNAME . "?start=join_$code\n\n";
     $msg .= "👇 برای شروع بازی حداقل ۴ نفر نیازه!";
     
-    // ارسال پیام با try-catch
-    try {
-        sendMessage($group_id, $msg);
-    } catch (Exception $e) {
-        file_put_contents(__DIR__ . '/bot.log', date('Y-m-d H:i:s') . " - Error sending message: " . $e->getMessage() . "\n", FILE_APPEND);
+    // ارسال پیام با روش جایگزین
+    $result = sendMessage($group_id, $msg);
+    
+    // اگه پیام اول ارسال نشد، با یه روش دیگه امتحان کن
+    if (!$result || !isset($result['ok'])) {
+        // ارسال پیام کوتاه
+        sendMessage($group_id, "✅ بازی با کد <code>$code</code> ساخته شد!\nبرای دیدن جزئیات /players رو بزن.");
     }
     
     return ['success' => true, 'message' => $msg, 'code' => $code];
