@@ -439,8 +439,7 @@ function generateGameCode() {
 function createGame($group_id, $creator_id, $creator_name) {
     $games = loadGames();
     
-    // برای دیباگ: لاگ کردن group_id
-    file_put_contents(__DIR__ . '/bot.log', date('Y-m-d H:i:s') . " - createGame for group: " . $group_id . "\n", FILE_APPEND);
+    file_put_contents(__DIR__ . '/bot.log', date('Y-m-d H:i:s') . " - createGame called for group: " . $group_id . "\n", FILE_APPEND);
     
     foreach ($games as $game) {
         if (isset($game['group_id']) && $game['group_id'] == $group_id && in_array($game['status'], ['waiting', 'started'])) {
@@ -449,6 +448,12 @@ function createGame($group_id, $creator_id, $creator_name) {
     }
     
     $code = generateGameCode();
+    
+    // قبل از ذخیره، چک کن که group_id درست باشه
+    if (empty($group_id)) {
+        return ['success' => false, 'message' => '❌ خطا: group_id نامعتبر!'];
+    }
+    
     $games[$code] = [
         'code' => $code,
         'group_id' => $group_id,
@@ -474,7 +479,11 @@ function createGame($group_id, $creator_id, $creator_name) {
         'vote_duration' => 60,
         'game_mode' => 'normal'
     ];
+    
     saveGames($games);
+    
+    // لاگ برای دیباگ
+    file_put_contents(__DIR__ . '/bot.log', date('Y-m-d H:i:s') . " - Game created: $code for group: $group_id\n", FILE_APPEND);
     
     $remaining = $game['wait_until'] - time();
     $minutes = floor($remaining / 60);
@@ -488,6 +497,13 @@ function createGame($group_id, $creator_id, $creator_name) {
     $msg .= "📌 <b>دوستانت رو دعوت کن:</b>\n";
     $msg .= "🔗 لینک دعوت: https://t.me/" . BOT_USERNAME . "?start=join_$code\n\n";
     $msg .= "👇 برای شروع بازی حداقل ۴ نفر نیازه!";
+    
+    // ارسال پیام با try-catch
+    try {
+        sendMessage($group_id, $msg);
+    } catch (Exception $e) {
+        file_put_contents(__DIR__ . '/bot.log', date('Y-m-d H:i:s') . " - Error sending message: " . $e->getMessage() . "\n", FILE_APPEND);
+    }
     
     return ['success' => true, 'message' => $msg, 'code' => $code];
 }
@@ -1199,6 +1215,9 @@ function getDatabaseSize() {
 
 function sendMessage($chat_id, $text, $keyboard = null) {
     global $token;
+    
+    file_put_contents(__DIR__ . '/bot.log', date('Y-m-d H:i:s') . " - sendMessage to: $chat_id\n", FILE_APPEND);
+    
     $url = "https://api.telegram.org/bot$token/sendMessage";
     $data = ['chat_id' => $chat_id, 'text' => $text, 'parse_mode' => 'HTML'];
     if ($keyboard) $data['reply_markup'] = json_encode($keyboard);
@@ -1211,7 +1230,14 @@ function sendMessage($chat_id, $text, $keyboard = null) {
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
     curl_setopt($ch, CURLOPT_TIMEOUT, 10);
     $result = curl_exec($ch);
+    $error = curl_error($ch);
     curl_close($ch);
+    
+    file_put_contents(__DIR__ . '/bot.log', date('Y-m-d H:i:s') . " - sendMessage result: " . substr($result, 0, 200) . "\n", FILE_APPEND);
+    if ($error) {
+        file_put_contents(__DIR__ . '/bot.log', date('Y-m-d H:i:s') . " - cURL Error: $error\n", FILE_APPEND);
+    }
+    
     return json_decode($result, true);
 }
 
