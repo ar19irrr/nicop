@@ -11,6 +11,12 @@ abstract class Role {
     protected $roleData = [];
     
     public function __construct($player, $game) {
+        // اصلاح ارور Undefined array key "id"
+        if (!is_array($player) || !isset($player['id'])) {
+            // اگر پلیر خراب بود، یه آرایه امن بساز
+            $player = ['id' => 0, 'name' => 'Unknown', 'alive' => false, 'role_data' => []];
+        }
+        
         $this->player = $player;
         $this->playerId = $player['id'];
         $this->game = $game;
