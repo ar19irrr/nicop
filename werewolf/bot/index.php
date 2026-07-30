@@ -768,7 +768,7 @@ function getRoleDisplayName($role) {
     return $names[$role] ?? '❓ ' . $role;
 }
 
-function getRoleDescription($role) {
+function getRoleDescriptionLocal($role) {
     global $lang;
     $key = 'role_' . $role;
     if (isset($lang[$key])) {
