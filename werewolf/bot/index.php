@@ -1,28 +1,26 @@
 <?php
-// نمایش تمام خطاها در مرورگر (این فقط برای تست است)
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
+// نمایش تمام خطاها
 error_reporting(E_ALL);
-
-// ایجاد یک فایل لاگ در همان پوشه برای اینکه اگر مرورگر جواب نداد، بتونیم ببینیم
-$log_file = __DIR__ . '/error_log.txt';
+ini_set('display_errors', 1);
 ini_set('log_errors', 1);
-ini_set('error_log', $log_file);
+ini_set('error_log', __DIR__ . '/error_log.txt');
 
-// اگر ربات ارور بدهد، یک پیام مستقیم به ادمین در تلگرام هم می‌فرستد!
-function send_error_to_telegram($error_message) {
-    global $admin_id, $token;
-    $url = "https://api.telegram.org/bot$token/sendMessage";
-    $data = ['chat_id' => $admin_id, 'text' => "🚨 <b>ارور ربات:</b>\n<pre>" . htmlspecialchars($error_message) . "</pre>", 'parse_mode' => 'HTML'];
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, $url);
-    curl_setopt($ch, CURLOPT_POST, 1);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($data));
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 5);
-    curl_exec($ch);
-    curl_close($ch);
+// این پیام به تلگرام شما می‌فرستد تا مطمئن شوید کد اجرا شده
+$admin_id = 1095925103; // آیدی شما که در کد هست
+$token = '8520546535:AAGUOnE7GYqTKb3jvt49DO_RatT8bgcWSNA';
+$url = "https://api.telegram.org/bot$token/sendMessage";
+$data = ['chat_id' => $admin_id, 'text' => "✅ ربات با موفقیت روی سرور روشن شد! ساعت: " . date('H:i:s')];
+$ch = curl_init();
+curl_setopt($ch, CURLOPT_URL, $url);
+curl_setopt($ch, CURLOPT_POST, 1);
+curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($data));
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+curl_exec($ch);
+curl_close($ch);
+
+// بقیه کدهای قبلی شما از اینجا به بعد...
 }
 register_shutdown_function(function() {
     $error = error_get_last();
