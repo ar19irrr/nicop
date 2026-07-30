@@ -1585,7 +1585,7 @@ if (isset($update['callback_query'])) {
         $parts = explode('_', $data);
         $action = $parts[1] ?? '';
         $role = $parts[2] ?? '';
-        $target = $parts[3] ?? '';
+        $target = isset($parts[3]) ? (int)$parts[3] : '';
         
         $games = loadGames();
         $game = null;
