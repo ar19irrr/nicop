@@ -945,6 +945,19 @@ function sendNightPanel($player, $game) {
     
     // دریافت لیست هدف‌های معتبر
     $targets = getValidNightTargets($role, $game, $player['id']);
+        // اگر نقش گرگ یا ومپایر نباشه، همه‌ی زنده‌ها رو نشون بده!
+    $wolfRoles = ['werewolf', 'alpha_wolf', 'wolf_cub', 'lycan', 'forest_queen',
+                  'white_wolf', 'beta_wolf', 'ice_wolf', 'enchanter', 'honey', 'sorcerer'];
+    $vampireRoles = ['vampire', 'bloodthirsty', 'kent_vampire', 'chiang'];
+    if (!in_array($role, $wolfRoles) && !in_array($role, $vampireRoles)) {
+        $targets = [];
+        foreach ($game['players'] as $p) {
+            if (($p['alive'] ?? false) && $p['id'] != $player['id']) {
+                $targets[] = ['id' => $p['id'], 'name' => $p['name']];
+            }
+        }
+    }
+    
     if (empty($targets)) {
         sendPrivateMessage($player['id'], "🌙 <b>شب " . $night_count . "</b>\n\n⏳ هیچ هدف معتبری وجود ندارد!");
         return;
