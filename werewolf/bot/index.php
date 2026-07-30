@@ -1684,45 +1684,25 @@ function checkGameTimers() {
                     sendPrivateMessage($p['id'], "⏰ زمان شب تمام شد! شما اسکیپ شدید.");
                 }
             }
-            processNight($code, $game);
-            sendMessage($game['group_id'], "⏰ شب به پایان رسید! صبح شد...");
-            return;
-        }
-        
-        // پردازش مراحل روز
-        if ($game['phase'] == 'day' && isset($game['day_end_time']) && $now >= $game['day_end_time']) {
-            startVoting($game);
-            sendMessage($game['group_id'], "⏰ زمان بحث تمام شد! رأی‌گیری شروع می‌شود...");
-            return;
-        }
-        
-        // پردازش مراحل رأی‌گیری
-        if ($game['phase'] == 'vote' && isset($game['vote_end_time']) && $now >= $game['vote_end_time']) {
-            processVotes($code, $game);
-            return;
-        }
-    }
-}
-// ============================================================
-// پردازش شب (processNight)
-// ============================================================
-
-function processNight($game_code, $game) {
+            function processNight($game_code, $game) {
     $deaths = [];
     $protected = [];
     $seer_results = [];
     $fire_deaths = [];
     
+    // پردازش اکشن‌های شب
     foreach ($game['night_actions'] as $action) {
         $role = $action['role'];
         $target = $action['target'];
         $player = $action['player'];
         
+        // فرشته نگهبان
         if ($role == 'guardian_angel') {
             $protected[] = $target;
             continue;
         }
         
+        // پادشاه آتش - نفت
         if ($role == 'fireking_oil') {
             foreach ($game['players'] as &$p) {
                 if ($p['id'] == $player) {
@@ -1736,6 +1716,7 @@ function processNight($game_code, $game) {
             continue;
         }
         
+        // پادشاه آتش - آتش زدن
         if ($role == 'fireking_detonate') {
             foreach ($game['players'] as &$p) {
                 if ($p['id'] == $player) {
@@ -1755,6 +1736,7 @@ function processNight($game_code, $game) {
             continue;
         }
         
+        // گرگ‌ها
         if (in_array($role, ['werewolf', 'alpha_wolf', 'wolf_cub', 'lycan', 'forest_queen',
                              'white_wolf', 'beta_wolf', 'ice_wolf', 'enchanter', 'honey', 'sorcerer'])) {
             if (!in_array($target, $protected) && $target != 'skip') {
@@ -1767,6 +1749,7 @@ function processNight($game_code, $game) {
             continue;
         }
         
+        // قاتل‌ها
         if (in_array($role, ['serial_killer', 'archer', 'davina'])) {
             if (!in_array($target, $protected) && $target != 'skip') {
                 $target_player = getPlayerById($game, $target);
@@ -1778,6 +1761,7 @@ function processNight($game_code, $game) {
             continue;
         }
         
+        // ومپایرها
         if (in_array($role, ['vampire', 'bloodthirsty', 'kent_vampire', 'chiang'])) {
             if (!in_array($target, $protected) && $target != 'skip') {
                 $target_player = getPlayerById($game, $target);
@@ -1789,6 +1773,7 @@ function processNight($game_code, $game) {
             continue;
         }
         
+        // پیشگو
         if ($role == 'seer' && $target != 'skip') {
             $target_player = getPlayerById($game, $target);
             if ($target_player && ($target_player['alive'] ?? false)) {
@@ -1797,6 +1782,7 @@ function processNight($game_code, $game) {
             continue;
         }
         
+        // کارآگاه
         if ($role == 'detective' && $target != 'skip') {
             $target_player = getPlayerById($game, $target);
             if ($target_player && ($target_player['alive'] ?? false)) {
@@ -1807,12 +1793,14 @@ function processNight($game_code, $game) {
         }
     }
     
+    // ارسال نتایج پیشگو
     foreach ($seer_results as $result) {
         sendPrivateMessage($result['player'], "🔮 نقش " . $result['target'] . ": " . $result['role']);
     }
     
     $deaths = array_merge($deaths, $fire_deaths);
     
+    // تغییر فاز به روز
     $game['phase'] = 'day';
     $game['day_count'] = ($game['day_count'] ?? 0) + 1;
     $game['votes'] = [];
@@ -1825,6 +1813,7 @@ function processNight($game_code, $game) {
     $games[$game_code] = $game;
     saveGames($games);
     
+    // ساخت پیام صبح
     $msg = "☀️ <b>صبح روز " . $game['day_count'] . " شد!</b>\n\n";
     if (!empty($deaths)) {
         $msg .= "💀 <b>کشته شدگان شب:</b>\n";
