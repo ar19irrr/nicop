@@ -1,12 +1,23 @@
 <?php
-// index.php - نسخه نهایی بدون باگ (همه چیز در یک فایل)
-// تاریخ: 2026-07-30
-
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 ini_set('log_errors', 1);
 ini_set('error_log', __DIR__ . '/error_log.txt');
 
+// یک پیام تست به خودتان (ادمین) می‌فرستد تا مطمئن شوید ربات روشن است
+$admin_id = 1095925103;
+$token = '8520546535:AAGUOnE7GYqTKb3jvt49DO_RatT8bgcWSNA';
+$url = "https://api.telegram.org/bot$token/sendMessage";
+$data = ['chat_id' => $admin_id, 'text' => "✅ ربات با موفقیت روی سرور روشن شد! ساعت: " . date('H:i:s')];
+$ch = curl_init();
+curl_setopt($ch, CURLOPT_URL, $url);
+curl_setopt($ch, CURLOPT_POST, 1);
+curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($data));
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+curl_exec($ch);
+curl_close($ch);
 // ============================================================
 // 1. تنظیمات اولیه و بارگذاری فایل‌ها
 // ============================================================
