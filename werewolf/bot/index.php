@@ -1,8 +1,35 @@
 <?php
-error_reporting(E_ALL);
+// نمایش تمام خطاها در مرورگر (این فقط برای تست است)
 ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
+// ایجاد یک فایل لاگ در همان پوشه برای اینکه اگر مرورگر جواب نداد، بتونیم ببینیم
+$log_file = __DIR__ . '/error_log.txt';
 ini_set('log_errors', 1);
-ini_set('error_log', __DIR__ . '/error_log.txt');
+ini_set('error_log', $log_file);
+
+// اگر ربات ارور بدهد، یک پیام مستقیم به ادمین در تلگرام هم می‌فرستد!
+function send_error_to_telegram($error_message) {
+    global $admin_id, $token;
+    $url = "https://api.telegram.org/bot$token/sendMessage";
+    $data = ['chat_id' => $admin_id, 'text' => "🚨 <b>ارور ربات:</b>\n<pre>" . htmlspecialchars($error_message) . "</pre>", 'parse_mode' => 'HTML'];
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_POST, 1);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($data));
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+    curl_exec($ch);
+    curl_close($ch);
+}
+register_shutdown_function(function() {
+    $error = error_get_last();
+    if ($error && in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR])) {
+        send_error_to_telegram("فایل: {$error['file']}\nخط: {$error['line']}\nپیام: {$error['message']}");
+    }
+});
 
 // index.php - نسخه نهایی کامل (همه چیز در یک فایل) - ویرایش شده با قابلیت‌های جدید
 
