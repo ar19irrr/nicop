@@ -1639,4 +1639,68 @@ switch ($command) {
 http_response_code(200);
 echo '{"ok":true}';
 file_put_contents(__DIR__ . '/bot.log', date('Y-m-d H:i:s') . " - END\n", FILE_APPEND);
+
+// ============================================================
+// چک کردن تایمرها (این تابع در کد اصلی شما وجود داشت و من حذفش کرده بودم)
+// ============================================================
+
+function checkGameTimers() {
+    $games = loadGames();
+    $now = time();
+    foreach ($games as $code => $game) {
+        
+        // اگر بازی در حالت انتظار است و زمانش تمام شده
+        if ($game['status'] == 'waiting' && isset($game['wait_until']) && $now >= $game['wait_until']) {
+            if (count($game['players']) < 4) {
+                // کمتر از ۴ نفر: بازی لغو میشود
+                unset($games[$code]);
+                saveGames($games);
+                sendMessage($game['group_id'], "⏰ زمان انتظار تمام شد! اما تعداد بازیکنان به ۴ نفر نرسید. \n❌ <b>بازی لغو شد!</b>");
+                continue;
+            } else {
+                // ۴ نفر یا بیشتر: بازی به صورت خودکار شروع میشود
+                // اینجا باید منطق شروع بازی را فراخوانی کنیم (از forceStartGame استفاده میکنیم)
+                $result = forceStartGame($game['group_id'], $game['creator_id']);
+                if ($result['success']) {
+                    sendMessage($game['group_id'], "⏰ زمان انتظار تمام شد! تعداد به ۴ نفر رسید. بازی شروع می‌شود...");
+                }
+                continue;
+            }
+        }
+        
+        // اگر بازی شروع نشده، ادامه نده
+        if ($game['status'] != 'started') continue;
+        
+        // پردازش مراحل شب
+        if ($game['phase'] == 'night' && isset($game['night_end_time']) && $now >= $game['night_end_time']) {
+            foreach ($game['players'] as $p) {
+                if (!($p['alive'] ?? false)) continue;
+                $has_action = false;
+                foreach ($game['night_actions'] as $action) {
+                    if ($action['player'] == $p['id']) { $has_action = true; break; }
+                }
+                if (!$has_action) {
+                    $game['night_actions'][] = ['player' => $p['id'], 'role' => $p['role'], 'target' => 'skip'];
+                    sendPrivateMessage($p['id'], "⏰ زمان شب تمام شد! شما اسکیپ شدید.");
+                }
+            }
+            processNight($code, $game);
+            sendMessage($game['group_id'], "⏰ شب به پایان رسید! صبح شد...");
+            return;
+        }
+        
+        // پردازش مراحل روز
+        if ($game['phase'] == 'day' && isset($game['day_end_time']) && $now >= $game['day_end_time']) {
+            startVoting($game);
+            sendMessage($game['group_id'], "⏰ زمان بحث تمام شد! رأی‌گیری شروع می‌شود...");
+            return;
+        }
+        
+        // پردازش مراحل رأی‌گیری
+        if ($game['phase'] == 'vote' && isset($game['vote_end_time']) && $now >= $game['vote_end_time']) {
+            processVotes($code, $game);
+            return;
+        }
+    }
+}
 ?>
