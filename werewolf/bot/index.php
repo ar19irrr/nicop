@@ -1,5 +1,5 @@
 <?php
-// index.php - نسخه نهایی و کامل (همه سیستم‌ها و ۷۵ نقش + ویژگی‌های جدید + رفع ارورهای تابع)
+// index.php - نسخه نهایی و کامل (رفع تمام ارورهای Parse و باگ‌های نقش‌دهی و رأی‌گیری)
 
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
@@ -492,7 +492,6 @@ function selectBalancedRoles($count) {
         return $roles;
     }
     
-    // ۱۹+ نفر
     $wolf_count = round($count * 0.2);
     $special_count = round($count * 0.15);
     
@@ -707,17 +706,18 @@ function forceStartGame($group_id, $user_id) {
         return ['success' => false, 'message' => '❌ حداقل ۴ نفر نیاز است! (' . count($game['players']) . '/4)'];
     }
     
-            $roles = selectBalancedRoles(count($game['players']));
-            shuffle($roles);
-            $i = 0;
-            foreach ($game['players'] as &$p) {
-                if (!isset($p['id']) || empty($p['id'])) continue; // اگر بازیکن خراب بود ردش کن
-                $p['role'] = $roles[$i] ?? 'villager';
-                $p['afk_count'] = 0;
-                $i++;
-            }
-            unset($p);
+    $roles = selectBalancedRoles(count($game['players']));
+    shuffle($roles);
+    $i = 0;
+    foreach ($game['players'] as &$p) {
+        if (!isset($p['id']) || empty($p['id'])) {
+            continue;
+        }
+        $p['role'] = $roles[$i] ?? 'villager';
+        $p['afk_count'] = 0;
+        $i++;
     }
+    unset($p);
     
     $game['status'] = 'started';
     $game['phase'] = 'night';
@@ -734,7 +734,6 @@ function forceStartGame($group_id, $user_id) {
     
     foreach ($game['players'] as $p) {
         $role_name = getRoleDisplayName($p['role']);
-        // استفاده از تابع تغییر نام داده شده برای جلوگیری از تداخل با lang.php
         sendPrivateMessage($p['id'], "🎭 <b>نقش شما: " . $role_name . "</b>\n\n" .
             getRoleDescriptionLocal($p['role']) . "\n\n🌙 شب اول شروع شد...");
         sendNightPanel($p, $game);
@@ -772,7 +771,6 @@ function getRoleDisplayName($role) {
     return $names[$role] ?? '❓ ' . $role;
 }
 
-// این تابع تغییر نام داده شده است تا با lang.php تداخل نداشته باشد
 function getRoleDescriptionLocal($role) {
     global $lang;
     $key = 'role_' . $role;
@@ -974,7 +972,7 @@ function sendFireKingPanel($player, $game, $targets) {
 }
 
 // ============================================================
-// 12. پردازش شب و روز (این بخش‌ها خطاهای قبلی را رفع می‌کنند)
+// 12. پردازش شب و روز
 // ============================================================
 
 function processNight($game_code, $game) {
@@ -1145,8 +1143,6 @@ function sendVotePanel($player, $game) {
     }
     if (!empty($row)) $keyboard[] = $row;
     $keyboard[] = [['text' => '⚪ رأی سفید', 'callback_data' => 'vote_skip']];
-    
-    // ارسال کیبورد
     sendPrivateMessage($player['id'], $msg, ['inline_keyboard' => $keyboard]);
 }
 
@@ -1613,7 +1609,6 @@ if (isset($update['callback_query'])) {
         $games[$game_code] = $game;
         saveGames($games);
         
-        // این خط تغییر کرده است تا نام شخص انتخاب شده را نشان دهد
         $target_name = ($target == 'skip') ? 'سفید' : getPlayerById($game, $target)['name'];
         answerCallbackQuery($callback_id, "✅ رأی شما به «$target_name» ثبت شد!", false);
         
