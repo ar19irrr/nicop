@@ -707,11 +707,16 @@ function forceStartGame($group_id, $user_id) {
         return ['success' => false, 'message' => '❌ حداقل ۴ نفر نیاز است! (' . count($game['players']) . '/4)'];
     }
     
-    $roles = selectBalancedRoles(count($game['players']));
-    shuffle($roles);
-    foreach ($game['players'] as $i => &$p) {
-        $p['role'] = $roles[$i];
-        $p['afk_count'] = 0;
+            $roles = selectBalancedRoles(count($game['players']));
+            shuffle($roles);
+            $i = 0;
+            foreach ($game['players'] as &$p) {
+                if (!isset($p['id']) || empty($p['id'])) continue; // اگر بازیکن خراب بود ردش کن
+                $p['role'] = $roles[$i] ?? 'villager';
+                $p['afk_count'] = 0;
+                $i++;
+            }
+            unset($p);
     }
     
     $game['status'] = 'started';
@@ -1140,6 +1145,8 @@ function sendVotePanel($player, $game) {
     }
     if (!empty($row)) $keyboard[] = $row;
     $keyboard[] = [['text' => '⚪ رأی سفید', 'callback_data' => 'vote_skip']];
+    
+    // ارسال کیبورد
     sendPrivateMessage($player['id'], $msg, ['inline_keyboard' => $keyboard]);
 }
 
@@ -1605,7 +1612,11 @@ if (isset($update['callback_query'])) {
         $game['votes'][$user_id] = ($target == 'skip' ? 'skip' : (int)$target);
         $games[$game_code] = $game;
         saveGames($games);
-        answerCallbackQuery($callback_id, "✅ رأی شما ثبت شد!");
+        
+        // این خط تغییر کرده است تا نام شخص انتخاب شده را نشان دهد
+        $target_name = ($target == 'skip') ? 'سفید' : getPlayerById($game, $target)['name'];
+        answerCallbackQuery($callback_id, "✅ رأی شما به «$target_name» ثبت شد!", false);
+        
         $alive = getAlivePlayers($game);
         if (count($game['votes']) >= count($alive)) processVotes($game_code, $game);
         http_response_code(200);
