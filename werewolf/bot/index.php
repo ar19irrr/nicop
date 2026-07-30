@@ -978,13 +978,20 @@ function getValidNightTargets($role, $game, $playerId) {
         return ($p['alive'] ?? false) && $p['id'] != $playerId;
     });
     
+    // این شرط فقط برای گرگ‌هاست که نتونن هم‌تیمی‌های خودشون رو بزنن!
     $wolfRoles = ['werewolf', 'alpha_wolf', 'wolf_cub', 'lycan', 'forest_queen',
                   'white_wolf', 'beta_wolf', 'ice_wolf', 'enchanter', 'honey', 'sorcerer'];
+    
     $vampireRoles = ['vampire', 'bloodthirsty', 'kent_vampire', 'chiang'];
     
     foreach ($alivePlayers as $p) {
+        // فقط برای گرگ‌ها: اگر هدف هم گرگ بود، ادامه نده (نتونه خودی رو بزنه)
         if (in_array($role, $wolfRoles) && in_array($p['role'], $wolfRoles)) continue;
+        
+        // فقط برای ومپایرها: اگر هدف هم ومپایر بود، ادامه نده
         if (in_array($role, $vampireRoles) && in_array($p['role'], $vampireRoles)) continue;
+        
+        // همه‌ی نقش‌های دیگه (پیشگو، قاتل، فرقه‌گرا، و...) می‌تونن همه رو ببینن!
         $targets[] = ['id' => $p['id'], 'name' => $p['name']];
     }
     return $targets;
