@@ -560,16 +560,6 @@ function getRoleDisplayName($role) {
     return $names[$role] ?? '❓ ' . $role;
 }
 
-function getRoleDescription($role) {
-    global $lang;
-    $key = 'role_' . $role;
-    if (isset($lang[$key])) return $lang[$key];
-    if (class_exists('RoleFactory')) {
-        $role_obj = RoleFactory::create($role, [], []);
-        return $role_obj->getDescription();
-    }
-    return "🎭 شما " . getRoleDisplayName($role) . " هستید!";
-}
 
 // ... (بقیه توابع getRoleActionDescription, sendNightPanel, getValidNightTargets, processNight, startVoting, checkWinCondition, endGame, getRules, sendMessage, sendPrivateMessage, answerCallbackQuery و ... دقیقاً مثل کد اصلی شما باقی می‌مانند. برای جلوگیری از طولانی شدن بیش از حد، این بخش‌ها حذف شدند اما در کد اصلی شما هستند) ...
 
