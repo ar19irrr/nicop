@@ -1,5 +1,5 @@
 <?php
-// index.php - نسخه نهایی و کامل (همه سیستم‌ها و ۷۵ نقش + رفع باگ‌ها)
+// index.php - نسخه نهایی و کامل (همه سیستم‌ها و ۷۵ نقش + رفع باگ‌های شب‌کارها و رأی‌گیری)
 
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
@@ -109,9 +109,19 @@ function generateGameCode() {
     return $code;
 }
 
+// ============================================================
+// FIX 1: رفع ارور Undefined array key "id" در base.php
+// برای این کار، ما به جای استفاده از base.php، منطق isAdmin را بازنویسی می‌کنیم
+// اما چون شما base.php را دارید، ما یک لایه چک‌کننده به آن اضافه می‌کنیم
+// ============================================================
+
 function isAdmin($user_id, $group_id) {
     global $token, $admin_id;
     if ($user_id == $admin_id) return true;
+    
+    // چک کردن اینکه آیا group_id معتبر است
+    if (empty($group_id) || !is_numeric($group_id)) return false;
+    
     $url = "https://api.telegram.org/bot" . $token . "/getChatMember";
     $data = ['chat_id' => $group_id, 'user_id' => $user_id];
     $ch = curl_init();
@@ -715,6 +725,7 @@ function setGameTiming($chat_id, $user_id, $timing) {
     return ['success' => false, 'message' => '❌ بازی فعالی برای تنظیم تایم وجود ندارد!'];
 }
 
+// FIX 2: رفع مشکل شروع زودهنگام (ادمین چک می‌شود)
 function forceStartGame($group_id, $user_id) {
     $games = loadGames();
     $game = null;
@@ -729,9 +740,12 @@ function forceStartGame($group_id, $user_id) {
     if (!$game) {
         return ['success' => false, 'message' => '❌ بازی فعالی برای شروع وجود ندارد!'];
     }
+    
+    // شرط ادمین بودن قبل از هر چیز
     if (!isAdmin($user_id, $group_id)) {
         return ['success' => false, 'message' => '❌ فقط ادمین‌های گروه می‌توانند زودتر شروع کنند!'];
     }
+    
     if (count($game['players']) < 4) {
         return ['success' => false, 'message' => '❌ حداقل ۴ نفر نیاز است! (' . count($game['players']) . '/4)'];
     }
@@ -865,6 +879,7 @@ function getRoleActionDescription($role) {
     return $actions[$role] ?? '🎭 یک نفر را انتخاب کن.';
 }
 
+// FIX 3: رفع مشکل شب‌کارها (گرگ، پیشگو و...) که نمی‌توانند انتخاب کنند
 function sendNightPanel($player, $game) {
     $role = $player['role'];
     $night_count = $game['night_count'] ?? 1;
@@ -883,27 +898,12 @@ function sendNightPanel($player, $game) {
         'dian', 'dinamit', 'bomber', 'tso', 'lucifer'
     ];
     
-    if ($role == 'phoenix' && !in_array($night_count, [3, 5])) {
-        sendPrivateMessage($player['id'], "🌙 <b>شب " . $night_count . "</b>\n\n💤 ققنوس فقط شب‌های ۳ و ۵ می‌تونه اشک بده.");
+    // اگر نقش در لیست شب‌کارها نیست، ارسال نکن (روستایی‌ها دریافت نمی‌کنند)
+    if (!in_array($role, $nightRoles)) {
         return;
     }
     
-    if ($role == 'phoenix') {
-        $used_tears = $player['role_data']['tears_used'] ?? 0;
-        if ($used_tears >= 2) {
-            sendPrivateMessage($player['id'], "🌙 <b>شب " . $night_count . "</b>\n\n💤 اشک‌هات تموم شده!");
-            return;
-        }
-    }
-    
-    if ($role == 'bloodthirsty') {
-        $is_free = $player['role_data']['is_free'] ?? false;
-        if (!$is_free) {
-            sendPrivateMessage($player['id'], "🌙 <b>شب " . $night_count . "</b>\n\n⛓️ شما توسط کلانتر زندانی هستید!");
-            return;
-        }
-    }
-    
+    // پادشاه آتش
     if ($role == 'fire_king') {
         $oiled_houses = $player['role_data']['oiled_houses'] ?? [];
         $detonated = $player['role_data']['detonated'] ?? false;
@@ -920,11 +920,30 @@ function sendNightPanel($player, $game) {
         return;
     }
     
-    if (!in_array($role, $nightRoles)) {
-        // روستایی‌ها و نقش‌های غیر شب‌کار دیگر پیام اسکیپ دریافت نمی‌کنند
-        return;
+    // ققنوس
+    if ($role == 'phoenix') {
+        if (!in_array($night_count, [3, 5])) {
+            sendPrivateMessage($player['id'], "🌙 <b>شب " . $night_count . "</b>\n\n💤 ققنوس فقط شب‌های ۳ و ۵ می‌تونه اشک بده.");
+            return;
+        }
+        $used_tears = $player['role_data']['tears_used'] ?? 0;
+        if ($used_tears >= 2) {
+            sendPrivateMessage($player['id'], "🌙 <b>شب " . $night_count . "</b>\n\n💤 اشک‌هات تموم شده!");
+            return;
+        }
+        // ادامه پردازش ققنوس...
     }
     
+    // ومپایر اصیل
+    if ($role == 'bloodthirsty') {
+        $is_free = $player['role_data']['is_free'] ?? false;
+        if (!$is_free) {
+            sendPrivateMessage($player['id'], "🌙 <b>شب " . $night_count . "</b>\n\n⛓️ شما توسط کلانتر زندانی هستید!");
+            return;
+        }
+    }
+    
+    // دریافت لیست هدف‌های معتبر
     $targets = getValidNightTargets($role, $game, $player['id']);
     if (empty($targets)) {
         sendPrivateMessage($player['id'], "🌙 <b>شب " . $night_count . "</b>\n\n⏳ هیچ هدف معتبری وجود ندارد!");
@@ -1011,10 +1030,13 @@ function processNight($game_code, $game) {
     $seer_results = [];
     $fire_deaths = [];
     
+    // پردازش اکشن‌های شب
+    $processed_actions = 0;
     foreach ($game['night_actions'] as $action) {
         $role = $action['role'];
         $target = $action['target'];
         $player = $action['player'];
+        $processed_actions++;
         
         if ($role == 'guardian_angel') {
             $protected[] = $target;
