@@ -744,7 +744,7 @@ function forceStartGame($group_id, $user_id) {
         return ['success' => false, 'message' => '❌ حداقل ۴ نفر نیاز است! (' . count($game['players']) . '/4)'];
     }
     
-        $roles = selectBalancedRoles(count($game['players']));
+    $roles = selectBalancedRoles(count($game['players']));
     shuffle($roles);
     $i = 0;
     foreach ($game['players'] as &$p) {
@@ -754,7 +754,7 @@ function forceStartGame($group_id, $user_id) {
         $i++;
     }
     unset($p);
-
+    
     $game['status'] = 'started';
     $game['phase'] = 'night';
     $game['night_count'] = 1;
@@ -763,25 +763,19 @@ function forceStartGame($group_id, $user_id) {
     $game['night_end_time'] = time() + $game['night_duration'];
     $game['day_end_time'] = 0;
     $game['vote_end_time'] = 0;
-
+    
     $games = loadGames();
     $games[$game_code] = $game;
     saveGames($games);
-
-    // فقط این خط رو اضافه کن (این ارور شب‌کارها رو کامل رفع کرد)
+    
     foreach ($game['players'] as $p) {
         $role_name = getRoleDisplayName($p['role']);
         sendPrivateMessage($p['id'], "🎭 <b>نقش شما: " . $role_name . "</b>\n\n" .
             getRoleDescriptionLocal($p['role']) . "\n\n🌙 شب اول شروع شد...");
         sendNightPanel($p, $game);
     }
-
+    
     sendMessage($game['group_id'], "🌙 <b>شب " . $game['night_count'] . "!</b>\n\nهمه بخوابید...\n⏱ {$game['night_duration']} ثانیه");
-    return ['success' => true, 'message' => "🎮 <b>بازی شروع شد!</b>"];
-    sendNightPanel($p, $game);   // ← این خط رو حتما اضافه کن!
-}
-
-sendMessage($game['group_id'], "🌙 <b>شب " . $game['night_count'] . "!</b>\n\nهمه بخوابید...\n⏱ {$game['night_duration']} ثانیه");;
     return ['success' => true, 'message' => "🎮 <b>بازی شروع شد!</b>"];
 }
 
@@ -1187,11 +1181,11 @@ function processVotes($game_code, $game) {
     $afk_players = [];
     foreach ($alivePlayers as $p) {
         if (!isset($votes[$p['id']])) {
-           $player = getPlayerById($game, $p['id']);
-if ($player) {
-    $player['afk_count'] = ($player['afk_count'] ?? 0) + 1;
-    if ($player['afk_count'] >= 2) $afk_players[] = $player;
-}
+            $player = getPlayerById($game, $p['id']);
+            if ($player) {
+                $player['afk_count'] = ($player['afk_count'] ?? 0) + 1;
+                if ($player['afk_count'] >= 2) $afk_players[] = $player;
+            }
         }
     }
     
@@ -1432,18 +1426,29 @@ function checkGameTimers() {
         
         if ($game['status'] != 'started') continue;
         
-                if ($game['phase'] == 'night' && isset($game['night_end_time']) && $now >= $game['night_end_time']) {
+        if ($game['phase'] == 'night' && isset($game['night_end_time']) && $now >= $game['night_end_time']) {
+            foreach ($game['players'] as $p) {
+                if (!($p['alive'] ?? false)) continue;
+                $has_action = false;
+                foreach ($game['night_actions'] as $action) {
+                    if ($action['player'] == $p['id']) { $has_action = true; break; }
+                }
+                if (!$has_action && in_array($p['role'], ['werewolf', 'seer', 'guardian_angel', 'serial_killer', 'vampire', 'cultist'])) {
+                    $game['night_actions'][] = ['player' => $p['id'], 'role' => $p['role'], 'target' => 'skip'];
+                    sendPrivateMessage($p['id'], "⏰ زمان شب تمام شد! شما اسکیپ شدید.");
+                }
+            }
             processNight($code, $game);
             sendMessage($game['group_id'], "⏰ شب به پایان رسید! صبح شد...");
             return;
         }
-
+        
         if ($game['phase'] == 'day' && isset($game['day_end_time']) && $now >= $game['day_end_time']) {
             startVoting($game);
             sendMessage($game['group_id'], "⏰ زمان بحث تمام شد! رأی‌گیری شروع می‌شود...");
             return;
         }
-
+        
         if ($game['phase'] == 'vote' && isset($game['vote_end_time']) && $now >= $game['vote_end_time']) {
             processVotes($code, $game);
             return;
