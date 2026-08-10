@@ -768,14 +768,15 @@ function forceStartGame($group_id, $user_id) {
     $games[$game_code] = $game;
     saveGames($games);
     
-    foreach ($game['players'] as $p) {
-        $role_name = getRoleDisplayName($p['role']);
-        sendPrivateMessage($p['id'], "🎭 <b>نقش شما: " . $role_name . "</b>\n\n" .
-            getRoleDescriptionLocal($p['role']) . "\n\n🌙 شب اول شروع شد...");
-        sendNightPanel($p, $game);
-    }
-    
-    sendMessage($game['group_id'], "🌙 <b>شب " . $game['night_count'] . "!</b>\n\nهمه بخوابید...\n⏱ {$game['night_duration']} ثانیه");
+  // داخل forceStartGame (بعد از $i++ و unset($p))
+foreach ($game['players'] as $p) {
+    $role_name = getRoleDisplayName($p['role']);
+    sendPrivateMessage($p['id'], "🎭 <b>نقش شما: " . $role_name . "</b>\n\n" .
+        getRoleDescriptionLocal($p['role']) . "\n\n🌙 شب اول شروع شد...");
+    sendNightPanel($p, $game);   // ← این خط رو حتما اضافه کن!
+}
+
+sendMessage($game['group_id'], "🌙 <b>شب " . $game['night_count'] . "!</b>\n\nهمه بخوابید...\n⏱ {$game['night_duration']} ثانیه");;
     return ['success' => true, 'message' => "🎮 <b>بازی شروع شد!</b>"];
 }
 
@@ -1181,11 +1182,11 @@ function processVotes($game_code, $game) {
     $afk_players = [];
     foreach ($alivePlayers as $p) {
         if (!isset($votes[$p['id']])) {
-            $player = getPlayerById($game, $p['id']);
-            if ($player) {
-                $player['afk_count'] = ($player['afk_count'] ?? 0) + 1;
-                if ($player['afk_count'] >= 2) $afk_players[] = $player;
-            }
+           $player = getPlayerById($game, $p['id']);
+if ($player) {
+    $player['afk_count'] = ($player['afk_count'] ?? 0) + 1;
+    if ($player['afk_count'] >= 2) $afk_players[] = $player;
+}
         }
     }
     
