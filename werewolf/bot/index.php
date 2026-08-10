@@ -1,6 +1,5 @@
 <?php
 // index.php - نسخه نهایی و کامل (همه سیستم‌ها و ۷۵ نقش + رفع باگ‌های شب‌کارها و رأی‌گیری)
-
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 ini_set('log_errors', 1);
@@ -15,7 +14,7 @@ $data_path = __DIR__ . '/data/';
 $admin_id = 1095925103;
 
 // ============================================================
-// 2. بارگذاری فایل‌های اصلی (بدون خطای redeclare)
+// 2. بارگذاری فایل‌های اصلی
 // ============================================================
 
 if (file_exists(__DIR__ . '/lang.php')) {
@@ -90,6 +89,7 @@ function getPlayerActiveGame($user_id) {
 }
 
 function getPlayerById($game, $id) {
+    if (!$game) return null;
     foreach ($game['players'] as $p) {
         if ($p['id'] == $id) return $p;
     }
@@ -109,17 +109,10 @@ function generateGameCode() {
     return $code;
 }
 
-// ============================================================
-// FIX 1: رفع ارور Undefined array key "id" در base.php
-// برای این کار، ما به جای استفاده از base.php، منطق isAdmin را بازنویسی می‌کنیم
-// اما چون شما base.php را دارید، ما یک لایه چک‌کننده به آن اضافه می‌کنیم
-// ============================================================
-
 function isAdmin($user_id, $group_id) {
     global $token, $admin_id;
     if ($user_id == $admin_id) return true;
     
-    // چک کردن اینکه آیا group_id معتبر است
     if (empty($group_id) || !is_numeric($group_id)) return false;
     
     $url = "https://api.telegram.org/bot" . $token . "/getChatMember";
@@ -465,7 +458,7 @@ function getScore($user_id) {
 }
 
 // ============================================================
-// 8. بالانس نقش‌ها (۷۵ نقش پشتیبانی می‌شود)
+// 8. بالانس نقش‌ها
 // ============================================================
 
 function selectBalancedRoles($count) {
@@ -529,7 +522,6 @@ function selectBalancedRoles($count) {
         return $roles;
     }
     
-    // ۱۹+ نفر
     $wolf_count = round($count * 0.2);
     $special_count = round($count * 0.15);
     
@@ -551,7 +543,7 @@ function selectBalancedRoles($count) {
 }
 
 // ============================================================
-// 9. توابع اصلی بازی (با تغییرات درخواستی)
+// 9. توابع اصلی بازی
 // ============================================================
 
 function createGame($group_id, $creator_id, $creator_name, $mode = 'normal') {
@@ -573,11 +565,10 @@ function createGame($group_id, $creator_id, $creator_name, $mode = 'normal') {
         'foolish' => 'احمقانه 🃏',
         'mighty' => 'قدرتی ♨️',
         'romantic' => 'عاشقانه 👨‍❤️‍👨',
-        'coin' => 'سکه‌ای 💰'
+        'coin' => 'سکنه‌ای 💰'
     ];
     $mode_name = $modes[$mode] ?? 'عادی';
     
-    // تغییر مهم: سازنده بازی دیگر خودکار جوین نمی‌شود (لیست بازیکنان خالی شروع می‌شود)
     $games[$code] = [
         'code' => $code,
         'group_id' => $group_id,
@@ -585,7 +576,7 @@ function createGame($group_id, $creator_id, $creator_name, $mode = 'normal') {
         'creator_name' => $creator_name,
         'mode' => $mode,
         'mode_name' => $mode_name,
-        'players' => [], // لیست خالی
+        'players' => [],
         'status' => 'waiting',
         'created' => time(),
         'wait_until' => time() + 300,
@@ -647,8 +638,6 @@ function joinGame($code, $user_id, $user_name) {
     $game['players'][] = ['id' => $user_id, 'name' => $user_name, 'alive' => true, 'role' => null];
     $games[$code] = $game;
     saveGames($games);
-    
-    // ارسال لیست بازیکنان با دکمه ورود
     sendPlayerList($game['group_id'], $game);
     return ['success' => true, 'message' => "✅ $user_name به بازی پیوست!", 'game' => $game];
 }
@@ -725,7 +714,6 @@ function setGameTiming($chat_id, $user_id, $timing) {
     return ['success' => false, 'message' => '❌ بازی فعالی برای تنظیم تایم وجود ندارد!'];
 }
 
-// FIX 2: رفع مشکل شروع زودهنگام (ادمین چک می‌شود)
 function forceStartGame($group_id, $user_id) {
     $games = loadGames();
     $game = null;
@@ -741,7 +729,6 @@ function forceStartGame($group_id, $user_id) {
         return ['success' => false, 'message' => '❌ بازی فعالی برای شروع وجود ندارد!'];
     }
     
-    // شرط ادمین بودن قبل از هر چیز
     if (!isAdmin($user_id, $group_id)) {
         return ['success' => false, 'message' => '❌ فقط ادمین‌های گروه می‌توانند زودتر شروع کنند!'];
     }
@@ -775,8 +762,8 @@ function forceStartGame($group_id, $user_id) {
     saveGames($games);
     
     foreach ($game['players'] as $p) {
+        if (!isset($p['role']) || empty($p['role'])) continue;
         $role_name = getRoleDisplayName($p['role']);
-        // استفاده از تابع تغییر نام داده شده برای جلوگیری از تداخل با lang.php
         sendPrivateMessage($p['id'], "🎭 <b>نقش شما: " . $role_name . "</b>\n\n" .
             getRoleDescriptionLocal($p['role']) . "\n\n🌙 شب اول شروع شد...");
         sendNightPanel($p, $game);
@@ -792,8 +779,12 @@ function forceStartGame($group_id, $user_id) {
 
 function getRoleDisplayName($role) {
     if (class_exists('RoleFactory')) {
-        $role_obj = RoleFactory::create($role, [], []);
-        return $role_obj->getEmoji() . ' ' . $role_obj->getName();
+        try {
+            $role_obj = RoleFactory::create($role, [], []);
+            return $role_obj->getEmoji() . ' ' . $role_obj->getName();
+        } catch (Exception $e) {
+            return '❓ ' . $role;
+        }
     }
     $names = [
         'villager' => '👨‍🌾 روستایی ساده',
@@ -814,7 +805,6 @@ function getRoleDisplayName($role) {
     return $names[$role] ?? '❓ ' . $role;
 }
 
-// این تابع تغییر نام داده شده است تا با lang.php تداخل نداشته باشد
 function getRoleDescriptionLocal($role) {
     global $lang;
     $key = 'role_' . $role;
@@ -822,8 +812,12 @@ function getRoleDescriptionLocal($role) {
         return $lang[$key];
     }
     if (class_exists('RoleFactory')) {
-        $role_obj = RoleFactory::create($role, [], []);
-        return $role_obj->getDescription();
+        try {
+            $role_obj = RoleFactory::create($role, [], []);
+            return $role_obj->getDescription();
+        } catch (Exception $e) {
+            return "🎭 شما " . getRoleDisplayName($role) . " هستید!";
+        }
     }
     return "🎭 شما " . getRoleDisplayName($role) . " هستید!";
 }
@@ -879,7 +873,6 @@ function getRoleActionDescription($role) {
     return $actions[$role] ?? '🎭 یک نفر را انتخاب کن.';
 }
 
-// FIX 3: رفع مشکل شب‌کارها (گرگ، پیشگو و...) که نمی‌توانند انتخاب کنند
 function sendNightPanel($player, $game) {
     $role = $player['role'];
     $night_count = $game['night_count'] ?? 1;
@@ -898,12 +891,15 @@ function sendNightPanel($player, $game) {
         'dian', 'dinamit', 'bomber', 'tso', 'lucifer'
     ];
     
-    // اگر نقش در لیست شب‌کارها نیست، ارسال نکن (روستایی‌ها دریافت نمی‌کنند)
-    if (!in_array($role, $nightRoles)) {
-        return;
-    }
+    // همه نقش‌ها (حتی روستایی و غیر شب‌کار) پنهل می‌گیرند
+    $msg = "🌙 <b>شب " . $night_count . "</b>\n\n";
+    $msg .= "🎭 نقش شما: " . getRoleDisplayName($role) . "\n\n";
+    $msg .= getRoleActionDescription($role) . "\n\n";
+    $msg .= "👇 یک نفر رو انتخاب کن:";
     
-    // پادشاه آتش
+    $keyboard = [];
+    $row = [];
+    
     if ($role == 'fire_king') {
         $oiled_houses = $player['role_data']['oiled_houses'] ?? [];
         $detonated = $player['role_data']['detonated'] ?? false;
@@ -912,15 +908,22 @@ function sendNightPanel($player, $game) {
             return;
         }
         $targets = getValidNightTargets($role, $game, $player['id']);
-        if (empty($targets)) {
-            sendPrivateMessage($player['id'], "🌙 <b>شب " . $night_count . "</b>\n\n⏳ هیچ هدفی نیست!");
-            return;
+        if (!empty($oiled_houses)) {
+            $keyboard[] = [['text' => '💥 آتش زدن همه خونه‌های نفتی', 'callback_data' => 'night_fireking_detonate']];
         }
-        sendFireKingPanel($player, $game, $targets);
+        foreach ($targets as $target) {
+            $row[] = ['text' => '🛢️ ' . $target['name'], 'callback_data' => 'night_fireking_oil_' . $target['id']];
+            if (count($row) == 2) {
+                $keyboard[] = $row;
+                $row = [];
+            }
+        }
+        if (!empty($row)) $keyboard[] = $row;
+        $keyboard[] = [['text' => '⏭️ اسکیپ', 'callback_data' => 'night_skip_fireking']];
+        sendPrivateMessage($player['id'], $msg, ['inline_keyboard' => $keyboard]);
         return;
     }
     
-    // ققنوس
     if ($role == 'phoenix') {
         if (!in_array($night_count, [3, 5])) {
             sendPrivateMessage($player['id'], "🌙 <b>شب " . $night_count . "</b>\n\n💤 ققنوس فقط شب‌های ۳ و ۵ می‌تونه اشک بده.");
@@ -931,10 +934,9 @@ function sendNightPanel($player, $game) {
             sendPrivateMessage($player['id'], "🌙 <b>شب " . $night_count . "</b>\n\n💤 اشک‌هات تموم شده!");
             return;
         }
-        // ادامه پردازش ققنوس...
+        // ادامه پردازش ققنوس (اگر نیاز به کد خاص داشت)
     }
     
-    // ومپایر اصیل
     if ($role == 'bloodthirsty') {
         $is_free = $player['role_data']['is_free'] ?? false;
         if (!$is_free) {
@@ -943,33 +945,13 @@ function sendNightPanel($player, $game) {
         }
     }
     
-    // دریافت لیست هدف‌های معتبر
     $targets = getValidNightTargets($role, $game, $player['id']);
-        // اگر نقش گرگ یا ومپایر نباشه، همه‌ی زنده‌ها رو نشون بده!
-    $wolfRoles = ['werewolf', 'alpha_wolf', 'wolf_cub', 'lycan', 'forest_queen',
-                  'white_wolf', 'beta_wolf', 'ice_wolf', 'enchanter', 'honey', 'sorcerer'];
-    $vampireRoles = ['vampire', 'bloodthirsty', 'kent_vampire', 'chiang'];
-    if (!in_array($role, $wolfRoles) && !in_array($role, $vampireRoles)) {
-        $targets = [];
-        foreach ($game['players'] as $p) {
-            if (($p['alive'] ?? false) && $p['id'] != $player['id']) {
-                $targets[] = ['id' => $p['id'], 'name' => $p['name']];
-            }
-        }
-    }
     
     if (empty($targets)) {
         sendPrivateMessage($player['id'], "🌙 <b>شب " . $night_count . "</b>\n\n⏳ هیچ هدف معتبری وجود ندارد!");
         return;
     }
     
-    $msg = "🌙 <b>شب " . $night_count . "</b>\n\n";
-    $msg .= "🎭 نقش شما: " . getRoleDisplayName($role) . "\n\n";
-    $msg .= getRoleActionDescription($role) . "\n\n";
-    $msg .= "👇 یک نفر رو انتخاب کن:";
-    
-    $keyboard = [];
-    $row = [];
     foreach ($targets as $target) {
         $row[] = ['text' => $target['name'], 'callback_data' => 'night_' . $role . '_' . $target['id']];
         if (count($row) == 2) {
@@ -977,9 +959,7 @@ function sendNightPanel($player, $game) {
             $row = [];
         }
     }
-    if (!empty($row)) {
-        $keyboard[] = $row;
-    }
+    if (!empty($row)) $keyboard[] = $row;
     $keyboard[] = [['text' => '⏭️ اسکیپ', 'callback_data' => 'night_skip_' . $role]];
     
     sendPrivateMessage($player['id'], $msg, ['inline_keyboard' => $keyboard]);
@@ -991,20 +971,13 @@ function getValidNightTargets($role, $game, $playerId) {
         return ($p['alive'] ?? false) && $p['id'] != $playerId;
     });
     
-    // این شرط فقط برای گرگ‌هاست که نتونن هم‌تیمی‌های خودشون رو بزنن!
     $wolfRoles = ['werewolf', 'alpha_wolf', 'wolf_cub', 'lycan', 'forest_queen',
                   'white_wolf', 'beta_wolf', 'ice_wolf', 'enchanter', 'honey', 'sorcerer'];
-    
     $vampireRoles = ['vampire', 'bloodthirsty', 'kent_vampire', 'chiang'];
     
     foreach ($alivePlayers as $p) {
-        // فقط برای گرگ‌ها: اگر هدف هم گرگ بود، ادامه نده (نتونه خودی رو بزنه)
         if (in_array($role, $wolfRoles) && in_array($p['role'], $wolfRoles)) continue;
-        
-        // فقط برای ومپایرها: اگر هدف هم ومپایر بود، ادامه نده
         if (in_array($role, $vampireRoles) && in_array($p['role'], $vampireRoles)) continue;
-        
-        // همه‌ی نقش‌های دیگه (پیشگو، قاتل، فرقه‌گرا، و...) می‌تونن همه رو ببینن!
         $targets[] = ['id' => $p['id'], 'name' => $p['name']];
     }
     return $targets;
@@ -1032,16 +1005,14 @@ function sendFireKingPanel($player, $game, $targets) {
             $row = [];
         }
     }
-    if (!empty($row)) {
-        $keyboard[] = $row;
-    }
+    if (!empty($row)) $keyboard[] = $row;
     $keyboard[] = [['text' => '⏭️ اسکیپ', 'callback_data' => 'night_skip_fireking']];
     
     sendPrivateMessage($player['id'], $msg, ['inline_keyboard' => $keyboard]);
 }
 
 // ============================================================
-// 11. پردازش شب و روز (با رفع حلقه بی‌پایان)
+// 11. پردازش شب و روز
 // ============================================================
 
 function processNight($game_code, $game) {
@@ -1050,7 +1021,6 @@ function processNight($game_code, $game) {
     $seer_results = [];
     $fire_deaths = [];
     
-    // پردازش اکشن‌های شب
     $processed_actions = 0;
     foreach ($game['night_actions'] as $action) {
         $role = $action['role'];
@@ -1222,6 +1192,7 @@ function processVotes($game_code, $game) {
     $votes = $game['votes'] ?? [];
     $alivePlayers = getAlivePlayers($game);
     $afk_players = [];
+    
     foreach ($alivePlayers as $p) {
         if (!isset($votes[$p['id']])) {
             foreach ($game['players'] as &$player) {
@@ -1233,10 +1204,12 @@ function processVotes($game_code, $game) {
             }
         }
     }
+    
     foreach ($afk_players as $afk) {
         $game = killPlayer($game, $afk['id'], 'afk');
         sendMessage($game['group_id'], "😴 <b>" . $afk['name'] . "</b> به خاطر غیرفعالی حذف شد!");
     }
+    
     $counts = [];
     $skipCount = 0;
     foreach ($votes as $voter_id => $target_id) {
@@ -1246,9 +1219,11 @@ function processVotes($game_code, $game) {
     arsort($counts);
     $max = reset($counts) ?? 0;
     $targets = array_keys($counts, $max);
+    
     $msg = "🗳️ <b>نتیجه رأی‌گیری روز " . $game['day_count'] . "</b>\n\n📊 آرا: " . count($votes) . " | سفید: $skipCount\n";
-    if (!empty($afk_players)) $msg .= "💀 حذف شدگان: " . count($afk_players) . "\n";
-    $msg .= "\n";
+    if (!empty($afk_players)) $msg += "💀 حذف شدگان: " . count($afk_players) . "\n";
+    $msg += "\n";
+    
     if ($max > 0 && count($targets) == 1) {
         $target_id = $targets[0];
         foreach ($game['players'] as &$p) {
@@ -1261,9 +1236,15 @@ function processVotes($game_code, $game) {
     } else {
         $msg .= "⚖️ <b>رأی‌ها مساوی شد! کسی اعدام نشد.</b>";
     }
+    
     sendMessage($game['group_id'], $msg);
+    
     $winCheck = checkWinCondition($game);
-    if ($winCheck['ended']) { endGame($game, $winCheck); return; }
+    if ($winCheck['ended']) { 
+        endGame($game, $winCheck); 
+        return; 
+    }
+    
     $game['phase'] = 'night';
     $game['night_count'] = ($game['night_count'] ?? 0) + 1;
     $game['night_actions'] = [];
@@ -1271,9 +1252,11 @@ function processVotes($game_code, $game) {
     $game['night_end_time'] = time() + $game['night_duration'];
     $game['day_end_time'] = 0;
     $game['vote_end_time'] = 0;
+    
     $games = loadGames();
     $games[$game_code] = $game;
     saveGames($games);
+    
     sendMessage($game['group_id'], "🌙 <b>شب " . $game['night_count'] . "!</b>\n\nهمه بخوابید...\n⏱ {$game['night_duration']} ثانیه تا صبح");
     foreach ($game['players'] as $p) {
         if ($p['alive'] ?? false) sendNightPanel($p, $game);
@@ -1288,11 +1271,13 @@ function checkWinCondition($game) {
     $alive = getAlivePlayers($game);
     $totalAlive = count($alive);
     if ($totalAlive == 0) return ['ended' => true, 'winner' => 'none', 'message' => '☠️ همه مردند!'];
+    
     $wolves = array_filter($alive, fn($p) => in_array($p['role'], ['werewolf', 'alpha_wolf', 'wolf_cub', 'lycan', 'forest_queen', 'white_wolf', 'beta_wolf', 'ice_wolf', 'enchanter', 'honey', 'sorcerer']));
     $villagers = array_filter($alive, fn($p) => !in_array($p['role'], ['werewolf', 'alpha_wolf', 'wolf_cub', 'lycan', 'forest_queen', 'white_wolf', 'beta_wolf', 'ice_wolf', 'enchanter', 'honey', 'sorcerer', 'serial_killer', 'vampire', 'bloodthirsty', 'cultist']));
     $cult = array_filter($alive, fn($p) => in_array($p['role'], ['cultist', 'royce', 'frankenstein', 'monk_black']));
     $killers = array_filter($alive, fn($p) => in_array($p['role'], ['serial_killer', 'archer', 'davina']));
     $vampires = array_filter($alive, fn($p) => in_array($p['role'], ['vampire', 'bloodthirsty', 'kent_vampire', 'chiang']));
+    
     if (count($wolves) == 0 && count($cult) == 0 && count($killers) == 0 && count($vampires) == 0) {
         return ['ended' => true, 'winner' => 'villager', 'message' => '👨‍🌾 روستایی‌ها برنده شدند!'];
     }
@@ -1331,57 +1316,6 @@ function endGame($game, $winCheck) {
     }
     sendMessage($game['group_id'], $msg);
     addXPAfterGame($game);
-}
-
-function getRules() {
-    return "📜 <b>قوانین بازی گرگینه</b>\n\n" .
-           "🌙 <b>شب:</b> گرگ‌ها یک نفر را می‌خورند، پیشگو نقش یک نفر را می‌بیند.\n" .
-           "☀️ <b>روز:</b> همه بحث می‌کنند و به یک نفر رأی می‌دهند.\n" .
-           "🏆 <b>برد:</b> گرگ‌ها باید همه روستایی‌ها را بخورند، روستایی‌ها باید همه گرگ‌ها را پیدا کنند.";
-}
-
-function getRolesList() {
-    return "🎭 <b>نقش‌های بازی</b>\n\n" .
-           "🐺 گرگینه - هر شب یک نفر را می‌خورد\n" .
-           "👳🏻‍♂️ پیشگو - هر شب نقش یک نفر را می‌بیند\n" .
-           "👨‍🌾 روستایی - در روز رأی می‌دهد\n" .
-           "👼🏻 فرشته نگهبان - هر شب از یک نفر محافظت می‌کند\n" .
-           "👮🏻‍♂️ کلانتر - ومپایر اصیل رو زندانی کرده\n" .
-           "🧛🏻‍♀️ ومپایر اصیل - زندانی کلانتر\n" .
-           "💂🏻‍♂️ شکارچی - فرقه‌ها رو شکار می‌کند\n" .
-           "👤 فرقه‌گرا - هر شب یک نفر رو دعوت می‌کند\n" .
-           "🔪 قاتل زنجیره‌ای - هر شب یک نفر رو می‌کشد\n" .
-           "🪶 ققنوس - شب‌های ۳ و ۵ اشک می‌دهد\n" .
-           "🔥🤴🏻 پادشاه آتش - نفت می‌پاشد و آتش می‌زند";
-}
-
-function sendPlayerList($chat_id, $game) {
-    $msg = "👥 <b>بازیکنان</b> - کد: <code>" . $game['code'] . "</code>\n\n";
-    $msg .= "👤 تعداد: " . count($game['players']) . " نفر\n\n";
-    foreach ($game['players'] as $p) {
-        $creator = ($p['id'] == $game['creator_id']) ? '👑' : '';
-        $msg .= "• {$p['name']} $creator\n";
-    }
-    if ($game['status'] == 'waiting' && isset($game['wait_until'])) {
-        $remaining = max(0, $game['wait_until'] - time());
-        $minutes = floor($remaining / 60);
-        $seconds = $remaining % 60;
-        $msg .= "\n⏱ زمان باقیمانده: $minutes:" . sprintf("%02d", $seconds);
-        $msg .= "\n\n⏰ برای تمدید ۳۰ ثانیه: /extend (فقط ادمین)";
-        
-        // دکمه ورود به روستا در پایین لیست
-        $keyboard = ['inline_keyboard' => [
-            [['text' => '🎯 ورود به روستا', 'callback_data' => 'join_' . $game['code']]]
-        ]];
-        sendMessage($chat_id, $msg, $keyboard);
-        
-        // اخطار ۱ دقیقه مانده
-        if ($remaining <= 60 && $remaining > 0) {
-            sendMessage($chat_id, "⏰ <b>۱ دقیقه تا پایان زمان انتظار!</b>\nبرای پیوستن عجله کن:", $keyboard);
-        }
-    } else {
-        sendMessage($chat_id, $msg);
-    }
 }
 
 // ============================================================
@@ -1465,10 +1399,11 @@ function checkGameTimers() {
         if ($game['status'] != 'started') continue;
         
         if ($game['phase'] == 'night' && isset($game['night_end_time']) && $now >= $game['night_end_time']) {
+            $night_actions = $game['night_actions'] ?? [];
             foreach ($game['players'] as $p) {
                 if (!($p['alive'] ?? false)) continue;
                 $has_action = false;
-                foreach ($game['night_actions'] as $action) {
+                foreach ($night_actions as $action) {
                     if ($action['player'] == $p['id']) { $has_action = true; break; }
                 }
                 if (!$has_action && in_array($p['role'], ['werewolf', 'seer', 'guardian_angel', 'serial_killer', 'vampire', 'cultist'])) {
@@ -1668,7 +1603,6 @@ if (isset($update['callback_query'])) {
         $games[$game_code] = $game;
         saveGames($games);
         
-        // اصلاح ارور Undefined variable $target_name
         $target_name = ($target == 'skip') ? 'سفید' : (getPlayerById($game, $target)['name'] ?? 'نامشخص');
         answerCallbackQuery($callback_id, "✅ رأی شما به «$target_name» ثبت شد!", false);
         
@@ -1703,7 +1637,6 @@ $parts = explode(' ', $text);
 $command = strtolower($parts[0]);
 $param = $parts[1] ?? '';
 
-// پشتیبانی از دستورات با نام ربات (مثلاً /extend@Ni_cop_bot)
 if (strpos($command, '@') !== false) {
     $command_parts = explode('@', $command);
     $command = $command_parts[0];
